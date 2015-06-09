@@ -1,25 +1,14 @@
 #include <obs-module.h>
 
-#define WIN32_MEAN_AND_LEAN
-#include <Windows.h>
-#undef WIN32_MEAN_AND_LEAN
+#include "mf-aac-encoder.hpp"
 
-#include <Shlwapi.h>
-#include <mfapi.h>
-#include <mfidl.h>
-#include <Mferror.h>
+#include <mferror.h>
 #include <mftransform.h>
 #include <wmcodecdsp.h>
 #include <comdef.h>
 
-#include <util/windows/ComPtr.hpp>
-
-#include <memory>
-
-#include "mf-aac-encoder.h"
-
-#define blog(level, format, ...) blog(level, "MFAAC: " format, ##__VA_ARGS__)
-#define blog_com(msg, hr) blog(LOG_ERROR, msg " failed,  %S (0x%08lx)", \
+#define blog_mf(level, format, ...) blog(level, "MFAAC: " format, ##__VA_ARGS__)
+#define blog_com(msg, hr) blog_mf(LOG_ERROR, msg " failed,  %S (0x%08lx)", \
 		_com_error(hr).ErrorMessage(), hr)
 #define HRC(r) \
 	if(FAILED(hr = (r))) { \
@@ -35,17 +24,17 @@ static const UINT32 VALID_BITRATES[] =
 	192  // 240
 };
 
-static const UINT32 VALID_CHANNELS [] =
+static const UINT32 VALID_CHANNELS[] =
 {
 	1,
 	2
 };
 
-static const UINT32 VALID_BITS_PER_SAMPLE [] = {
+static const UINT32 VALID_BITS_PER_SAMPLE[] = {
 	16
 };
 
-static const UINT32 VALID_SAMPLERATES [] = {
+static const UINT32 VALID_SAMPLERATES[] = {
 	44100,
 	48000
 };
@@ -60,52 +49,7 @@ bool IsValid(const UINT32(&validValues)[N], UINT32 value)
 	return false;
 };
 
-namespace {
-	class MFAACEncoder
-	{
-	public:
-		MFAACEncoder(UINT32 bitrate, UINT32 channels,
-				UINT32 sampleRate, UINT32 bitsPerSample)
-		: bitrate(bitrate), channels(channels),
-				sampleRate(sampleRate),
-				bitsPerSample(bitsPerSample) {}
-
-		MFAACEncoder& operator=(MFAACEncoder const&) = delete;
-
-		bool Initialize();
-		bool ProcessInput(UINT8 *data, UINT32 dataLength,
-			UINT64 pts, enum mf_aac_status *status);
-		bool ProcessOutput(UINT8 **data, UINT32 *dataLength,
-			UINT64 *pts, enum mf_aac_status *status);
-		bool ExtraData(UINT8 **extraData, UINT32 *extraDataLength);
-
-		UINT32 Bitrate() { return bitrate; }
-		UINT32 Channels() { return channels; }
-		UINT32 SampleRate() { return sampleRate; }
-		UINT32 BitsPerSample() { return bitsPerSample; }
-
-	private:
-		void InitializeExtraData();
-		HRESULT CreateMediaTypes(ComPtr<IMFMediaType> &inputType,
-				ComPtr<IMFMediaType> &outputType);
-		HRESULT EnsureCapacity(ComPtr<IMFSample> &sample, DWORD length);
-
-	private:
-		const UINT32 bitrate;
-		const UINT32 channels;
-		const UINT32 sampleRate;
-		const UINT32 bitsPerSample;
-
-		ComPtr<IMFTransform> transform;
-		ComPtr<IMFSample> outputSample;
-		std::unique_ptr<BYTE> packetBuffer;
-		DWORD packetBufferLength;
-		UINT8 extraData[5];
-	};
-};
-
-
-HRESULT MFAACEncoder::CreateMediaTypes(ComPtr<IMFMediaType> &i,
+HRESULT MFAAC::Encoder::CreateMediaTypes(ComPtr<IMFMediaType> &i,
 		ComPtr<IMFMediaType> &o)
 {
 	HRESULT hr;
@@ -124,14 +68,14 @@ HRESULT MFAACEncoder::CreateMediaTypes(ComPtr<IMFMediaType> &i,
 	HRC(o->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, sampleRate));
 	HRC(o->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, channels));
 	HRC(o->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND,
-		(bitrate * 1000) / 8));
+			(bitrate * 1000) / 8));
 
 	return S_OK;
 fail:
 	return hr;
 }
 
-void MFAACEncoder::InitializeExtraData()
+void MFAAC::Encoder::InitializeExtraData()
 {
 	UINT16 *extraData16 = (UINT16 *)extraData;
 	UINT16 profile = 2; //Low Complexity
@@ -158,7 +102,7 @@ void MFAACEncoder::InitializeExtraData()
 #undef SWAPU16
 }
 
-bool MFAACEncoder::Initialize()
+bool MFAAC::Encoder::Initialize()
 {
 	HRESULT hr;
 
@@ -166,19 +110,20 @@ bool MFAACEncoder::Initialize()
 	ComPtr<IMFMediaType> inputType, outputType;
 
 	if (!IsValid(VALID_BITRATES, bitrate)) {
-		blog(LOG_WARNING, "invalid bitrate (kbps) '%d'", bitrate);
+		blog_mf(LOG_WARNING, "invalid bitrate (kbps) '%d'", bitrate);
 		return false;
 	}
 	if (!IsValid(VALID_CHANNELS, channels)) {
-		blog(LOG_WARNING, "invalid channel count '%d", channels);
+		blog_mf(LOG_WARNING, "invalid channel count '%d", channels);
 		return false;
 	}
 	if (!IsValid(VALID_SAMPLERATES, sampleRate)) {
-		blog(LOG_WARNING, "invalid sample rate (hz) '%d", sampleRate);
+		blog_mf(LOG_WARNING, "invalid sample rate (hz) '%d", 
+				sampleRate);
 		return false;
 	}
 	if (!IsValid(VALID_BITS_PER_SAMPLE, bitsPerSample)) {
-		blog(LOG_WARNING, "invalid bits-per-sample (bits) '%d'",
+		blog_mf(LOG_WARNING, "invalid bits-per-sample (bits) '%d'",
 				bitsPerSample);
 		return false;
 	}
@@ -186,18 +131,18 @@ bool MFAACEncoder::Initialize()
 	InitializeExtraData();
 
 	HRC(CoCreateInstance(CLSID_AACMFTEncoder, NULL, CLSCTX_INPROC_SERVER,
-		IID_PPV_ARGS(&transform_)));
+			IID_PPV_ARGS(&transform_)));
 	HRC(CreateMediaTypes(inputType, outputType));
 
 	HRC(transform_->SetInputType(0, inputType.Get(), 0));
 	HRC(transform_->SetOutputType(0, outputType.Get(), 0));
 
 	HRC(transform_->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING,
-		NULL));
+			NULL));
 	HRC(transform_->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM,
-		NULL));
+			NULL));
 
-	blog(LOG_INFO, "encoder created\n"
+	blog_mf(LOG_INFO, "encoder 'mf_aac' created\n"
 			"\tbitrate: %d\n"
 			"\tchannels: %d\n"
 			"\tsample rate: %d\n"
@@ -225,7 +170,7 @@ fail:
 	return hr;
 }
 
-HRESULT MFAACEncoder::EnsureCapacity(ComPtr<IMFSample> &sample, DWORD length)
+HRESULT MFAAC::Encoder::EnsureCapacity(ComPtr<IMFSample> &sample, DWORD length)
 {
 	HRESULT hr;
 	ComPtr<IMFMediaBuffer> buffer;
@@ -248,9 +193,7 @@ HRESULT MFAACEncoder::EnsureCapacity(ComPtr<IMFSample> &sample, DWORD length)
 		buffer->SetCurrentLength(0);
 	}
 
-	if (!packetBuffer || packetBufferLength < length) {
-		packetBuffer.reset(new BYTE[length]);
-	}
+	packetBuffer.reserve(length);
 
 	return S_OK;
 
@@ -258,8 +201,8 @@ fail:
 	return hr;
 }
 
-bool MFAACEncoder::ProcessInput(UINT8 *data, UINT32 data_length,
-	UINT64 pts, enum mf_aac_status *status)
+bool MFAAC::Encoder::ProcessInput(UINT8 *data, UINT32 data_length,
+		UINT64 pts, MFAAC::Status *status)
 {
 	HRESULT hr;
 	ComPtr<IMFSample> sample;
@@ -285,29 +228,29 @@ bool MFAACEncoder::ProcessInput(UINT8 *data, UINT32 data_length,
 
 	hr = transform->ProcessInput(0, sample, 0);
 	if (hr == MF_E_NOTACCEPTING) {
-		*status = MF_AAC_NOT_ACCEPTING;
+		*status = MFAAC::NOT_ACCEPTING;
 		return true;
 	} else if (FAILED(hr)) {
 		blog_com("process input", hr);
 		return false;
 	}
 
-	*status = MF_AAC_SUCCESS;
+	*status = MFAAC::SUCCESS;
 	return true;
 
 fail:
-	*status = MF_AAC_FAILURE;
+	*status = MFAAC::FAILURE;
 	return false;
 }
 
-bool MFAACEncoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
-		UINT64 *pts, enum mf_aac_status *status)
+bool MFAAC::Encoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
+		UINT64 *pts, MFAAC::Status *status)
 {
 	HRESULT hr;
 
 	DWORD outputFlags, outputStatus;
-	MFT_OUTPUT_STREAM_INFO outputInfo = { 0 };
-	MFT_OUTPUT_DATA_BUFFER output = { 0 };
+	MFT_OUTPUT_STREAM_INFO outputInfo = {0};
+	MFT_OUTPUT_DATA_BUFFER output = {0};
 	ComPtr<IMFMediaBuffer> outputBuffer;
 	BYTE *bufferData;
 	DWORD bufferLength;
@@ -315,7 +258,7 @@ bool MFAACEncoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 
 	HRC(transform->GetOutputStatus(&outputFlags));
 	if (outputFlags != MFT_OUTPUT_STATUS_SAMPLE_READY) {
-		*status = MF_AAC_NEED_MORE_INPUT;
+		*status = MFAAC::NEED_MORE_INPUT;
 		return true;
 	}
 
@@ -326,7 +269,7 @@ bool MFAACEncoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 
 	hr = transform->ProcessOutput(0, 1, &output, &outputStatus);
 	if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) {
-		*status = MF_AAC_NEED_MORE_INPUT;
+		*status = MFAAC::NEED_MORE_INPUT;
 		return true;
 	} else if (FAILED(hr)) {
 		blog_com("process output", hr);
@@ -336,119 +279,25 @@ bool MFAACEncoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 	HRC(outputSample->GetBufferByIndex(0, &outputBuffer));
 
 	HRC(outputBuffer->Lock(&bufferData, NULL, &bufferLength));
-	memcpy(packetBuffer.get(), bufferData, bufferLength);
+	packetBuffer.assign(bufferData, bufferData + bufferLength);
 	HRC(outputBuffer->Unlock());
 
 	HRC(outputSample->GetSampleTime(&samplePts));
 
 	*pts = samplePts * 100;
-	*data = packetBuffer.get();
+	*data = &packetBuffer[0];
 	*dataLength = bufferLength;
-	*status = MF_AAC_SUCCESS;
+	*status = MFAAC::SUCCESS;
 	return true;
 
 fail:
-	*status = MF_AAC_FAILURE;
+	*status = MFAAC::FAILURE;
 	return false;
 }
 
-bool MFAACEncoder::ExtraData(UINT8 **extraData_, UINT32 *extraDataLength)
+bool MFAAC::Encoder::ExtraData(UINT8 **extraData_, UINT32 *extraDataLength)
 {
 	*extraData_ = extraData;
 	*extraDataLength = sizeof(extraData);
 	return true;
-}
-
-struct mf_aac_encoder
-{
-	MFAACEncoder *encoder;
-};
-
-mf_aac_encoder_t *mf_aac_encoder_create(uint32_t bitrate, uint32_t channels,
-		uint32_t sample_rate, uint32_t bits_per_sample)
-{
-	mf_aac_encoder_t *encoder =
-			(mf_aac_encoder_t *)bzalloc(sizeof(mf_aac_encoder_t));
-	if (!encoder)
-		return NULL;
-
-	encoder->encoder = new MFAACEncoder(bitrate, channels, sample_rate,
-			bits_per_sample);
-
-	return encoder;
-}
-
-void mf_aac_encoder_destroy(mf_aac_encoder_t *encoder)
-{
-	if (encoder != NULL && encoder->encoder != NULL)
-		delete encoder->encoder;
-}
-
-bool mf_aac_encoder_initialize(mf_aac_encoder_t *encoder)
-{
-	if (encoder != NULL && encoder->encoder != NULL)
-		return encoder->encoder->Initialize();
-	return false;
-}
-
-bool mf_aac_encoder_process_input(mf_aac_encoder_t *encoder,
-		uint8_t *data, uint32_t data_length,
-		uint64_t pts, enum mf_aac_status *status)
-{
-	if (encoder != NULL && encoder->encoder != NULL)
-		return encoder->encoder->ProcessInput(data,
-				data_length, pts, status);
-	return false;
-}
-
-bool mf_aac_encoder_process_output(mf_aac_encoder_t *encoder,
-		uint8_t **data, uint32_t *data_length,
-		uint64_t *pts, enum mf_aac_status *status)
-{
-	if (encoder != NULL && encoder->encoder != NULL)
-		return encoder->encoder->ProcessOutput(data,
-				data_length, pts, status);
-	return false;
-}
-
-bool mf_aac_encoder_extra_data(mf_aac_encoder_t *encoder,
-		uint8_t **extra_data, uint32_t *extra_data_length)
-{
-	if (encoder != NULL && encoder->encoder != NULL)
-		return encoder->encoder->ExtraData(
-				extra_data, extra_data_length);
-	return false;
-}
-
-int32_t mf_aac_encoder_frame_size()
-{
-	return 1024;
-}
-
-uint32_t mf_aac_encoder_bitrate(mf_aac_encoder_t *encoder)
-{
-	if (encoder != NULL && encoder->encoder != NULL)
-		return encoder->encoder->Bitrate();
-	return 0;
-}
-
-uint32_t mf_aac_encoder_channels(mf_aac_encoder_t *encoder)
-{
-	if (encoder != NULL && encoder->encoder != NULL)
-		return encoder->encoder->Channels();
-	return 0;
-}
-
-uint32_t mf_aac_encoder_sample_rate(mf_aac_encoder_t *encoder)
-{
-	if (encoder != NULL && encoder->encoder != NULL)
-		return encoder->encoder->SampleRate();
-	return 0;
-}
-
-uint32_t mf_aac_encoder_bits_per_sample(mf_aac_encoder_t *encoder)
-{
-	if (encoder != NULL && encoder->encoder != NULL)
-		return encoder->encoder->BitsPerSample();
-	return 0;
 }

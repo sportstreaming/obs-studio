@@ -1,10 +1,10 @@
 #include <obs-module.h>
 
-extern struct obs_encoder_info mf_aac_enc_info;
+extern void RegisterMFAACEncoder();
 
 bool obs_module_load(void)
 {
-	obs_register_encoder(&mf_aac_enc_info);
+	RegisterMFAACEncoder();
 	return true;
 }
 

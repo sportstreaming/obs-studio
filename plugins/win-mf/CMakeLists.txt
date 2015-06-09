@@ -2,11 +2,11 @@ project(win-mf)
 
 set(win-mf_SOURCES
 	mf-plugin.c
-	mf-aac.c
+	mf-aac.cpp
 	mf-aac-encoder.cpp)
 
 set(win-mf_HEADERS
-	mf-aac-encoder.h)
+	mf-aac-encoder.hpp)
 
 add_library(win-mf MODULE
 	${win-mf_SOURCES}
