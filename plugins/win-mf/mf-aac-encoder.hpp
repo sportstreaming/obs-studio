@@ -12,6 +12,13 @@
 
 #include <util/windows/ComPtr.hpp>
 
+#define MF_LOG(level, format, ...) \
+	blog(level, "[Media Foundation encoder]: " format, ##__VA_ARGS__)
+#define MF_LOG_ENCODER(format_name, encoder, level, format, ...) \
+	blog(level, "[Media Foundation %s: '%s']: " format, \
+			format_name, obs_encoder_get_name(encoder), \
+			##__VA_ARGS__)
+
 namespace MFAAC
 {
 
@@ -25,11 +32,10 @@ enum Status {
 class Encoder
 {
 public:
-	Encoder(UINT32 bitrate, UINT32 channels,
+	Encoder(const obs_encoder_t *encoder, UINT32 bitrate, UINT32 channels,
 			UINT32 sampleRate, UINT32 bitsPerSample)
-	: bitrate(bitrate), channels(channels),
-			sampleRate(sampleRate),
-			bitsPerSample(bitsPerSample) {}
+	: encoder(encoder), bitrate(bitrate), channels(channels),
+			sampleRate(sampleRate), bitsPerSample(bitsPerSample) {}
 
 	Encoder& operator=(Encoder const&) = delete;
 
@@ -40,6 +46,7 @@ public:
 			UINT64 *pts, MFAAC::Status *status);
 	bool ExtraData(UINT8 **extraData, UINT32 *extraDataLength);
 
+	const obs_encoder_t *ObsEncoder() { return encoder; }
 	UINT32 Bitrate() { return bitrate; }
 	UINT32 Channels() { return channels; }
 	UINT32 SampleRate() { return sampleRate; }
@@ -52,8 +59,11 @@ private:
 	HRESULT CreateMediaTypes(ComPtr<IMFMediaType> &inputType,
 			ComPtr<IMFMediaType> &outputType);
 	HRESULT EnsureCapacity(ComPtr<IMFSample> &sample, DWORD length);
+	HRESULT CreateEmptySample(ComPtr<IMFSample> &sample,
+			ComPtr<IMFMediaBuffer> &buffer, DWORD length);
 
 private:
+	const obs_encoder_t *encoder;
 	const UINT32 bitrate;
 	const UINT32 channels;
 	const UINT32 sampleRate;
@@ -64,5 +74,14 @@ private:
 	std::vector<BYTE> packetBuffer;
 	UINT8 extraData[5];
 };
+
+extern const UINT32 *VALID_BITRATES;
+extern const UINT32 *VALID_CHANNELS;
+extern const UINT32 *VALID_BITS_PER_SAMPLE;
+extern const UINT32 *VALID_SAMPLERATES;
+static const UINT32 FrameSize = 1024;
+
+UINT32 FindBestMatch(const UINT32 *validValues, UINT32 value);
+bool IsValid(const UINT32 *validValues, UINT32 value);
 
 }

@@ -4,6 +4,10 @@
 
 #include "mf-aac-encoder.hpp"
 
+#include <VersionHelpers.h>
+
+using namespace MFAAC;
+
 static const char *MFAAC_GetName(void)
 {
 	return obs_module_text("MFAACEnc");
@@ -28,15 +32,45 @@ static void MFAAC_GetDefaults(obs_data_t *settings)
 
 static void *MFAAC_Create(obs_data_t *settings, obs_encoder_t *encoder)
 {
-	audio_t *audio = obs_encoder_audio(encoder);
-
 	UINT32 bitrate = (UINT32)obs_data_get_int(settings, "bitrate");
+	if (!bitrate) {
+		MF_LOG_ENCODER("AAC", encoder, LOG_ERROR,
+			"Invalid bitrate specified");
+		return NULL;
+	}
+
+	audio_t *audio = obs_encoder_audio(encoder);
 	UINT32 channels = (UINT32)audio_output_get_channels(audio);
 	UINT32 sampleRate = audio_output_get_sample_rate(audio);
 	UINT32 bitsPerSample = 16;
 
-	std::unique_ptr<MFAAC::Encoder> enc(new MFAAC::Encoder(
+	UINT32 recommendedSampleRate = FindBestMatch(VALID_SAMPLERATES,
+			sampleRate);
+	if (recommendedSampleRate != sampleRate) {
+		MF_LOG_ENCODER("aac", encoder, LOG_WARNING,
+			"unsupported sample rate; "
+			"resampling to best guess '%d' instead of '%d'",
+			recommendedSampleRate, sampleRate);
+		sampleRate = recommendedSampleRate;
+	}
+
+	UINT32 recommendedBitRate = FindBestMatch(VALID_BITRATES,
+		bitrate);
+	if (recommendedBitRate != bitrate) {
+		MF_LOG_ENCODER("aac", encoder, LOG_WARNING,
+			"unsupported bitrate; "
+			"resampling to best guess '%d' instead of '%d'",
+			recommendedBitRate, bitrate);
+		bitrate = recommendedBitRate;
+	}
+
+	std::unique_ptr<Encoder> enc(new Encoder(encoder,
 			bitrate, channels, sampleRate, bitsPerSample));
+
+	audio_convert_info aci;
+	aci.samples_per_sec = sampleRate;
+
+
 
 	if (!enc->Initialize())
 		return nullptr;
@@ -46,15 +80,15 @@ static void *MFAAC_Create(obs_data_t *settings, obs_encoder_t *encoder)
 
 static void MFAAC_Destroy(void *data)
 {
-	MFAAC::Encoder *enc = static_cast<MFAAC::Encoder *>(data);
+	Encoder *enc = static_cast<Encoder *>(data);
 	delete enc;
 }
 
 static bool MFAAC_Encode(void *data, struct encoder_frame *frame,
 		struct encoder_packet *packet, bool *received_packet)
 {
-	MFAAC::Encoder *enc = static_cast<MFAAC::Encoder *>(data);
-	MFAAC::Status status;
+	Encoder *enc = static_cast<Encoder *>(data);
+	Status status;
 
 	if (!enc->ProcessInput(frame->data[0], frame->linesize[0], frame->pts,
 			&status))
@@ -62,19 +96,19 @@ static bool MFAAC_Encode(void *data, struct encoder_frame *frame,
 
 	// This shouldn't happen since we drain right after
 	// we process input
-	if (status == MFAAC::NOT_ACCEPTING)
+	if (status == NOT_ACCEPTING)
 		return false;
 
 	UINT8 *outputData;
 	UINT32 outputDataLength;
 	UINT64 outputPts;
 
-	if (!enc->ProcessOutput(&outputData, &outputDataLength, &outputPts, 
+	if (!enc->ProcessOutput(&outputData, &outputDataLength, &outputPts,
 			&status))
 		return false;
 
 	// Needs more input, not a failure case
-	if (status == MFAAC::NEED_MORE_INPUT)
+	if (status == NEED_MORE_INPUT)
 		return true;
 
 	packet->pts = outputPts;
@@ -90,7 +124,7 @@ static bool MFAAC_Encode(void *data, struct encoder_frame *frame,
 
 static bool MFAAC_GetExtraData(void *data, uint8_t **extra_data, size_t *size)
 {
-	MFAAC::Encoder *enc = static_cast<MFAAC::Encoder *>(data);
+	Encoder *enc = static_cast<Encoder *>(data);
 
 	UINT32 length;
 	if (enc->ExtraData(extra_data, &length)) {
@@ -103,22 +137,31 @@ static bool MFAAC_GetExtraData(void *data, uint8_t **extra_data, size_t *size)
 static void MFAAC_GetAudioInfo(void *data, struct audio_convert_info *info)
 {
 	UNUSED_PARAMETER(data);
+
 	info->format = AUDIO_FORMAT_16BIT;
+	info->samples_per_sec = FindBestMatch(VALID_SAMPLERATES,
+			info->samples_per_sec);
 }
 
 static size_t MFAAC_GetFrameSize(void *data)
 {
 	UNUSED_PARAMETER(data);
-	return MFAAC::Encoder::FrameSize;
+	return Encoder::FrameSize;
 }
 
 extern "C" {
 void RegisterMFAACEncoder();
 }
 
-void RegisterMFAACEncoder() 
+void RegisterMFAACEncoder()
 {
-	obs_encoder_info info;
+	if (!IsWindows8OrGreater()) {
+		MF_LOG(LOG_WARNING, "plugin is disabled for performance "
+			"reasons on Windows versions less than 8");
+		return;
+	}
+
+	obs_encoder_info info = {};
 	info.id                        = "mf_aac";
 	info.type                      = OBS_ENCODER_AUDIO;
 	info.codec                     = "AAC";
@@ -132,5 +175,8 @@ void RegisterMFAACEncoder()
 	info.get_extra_data            = MFAAC_GetExtraData;
 	info.get_audio_info            = MFAAC_GetAudioInfo;
 
+	MF_LOG(LOG_INFO, "Adding Media Foundation AAC Encoder");
+
 	obs_register_encoder(&info);
+
 }

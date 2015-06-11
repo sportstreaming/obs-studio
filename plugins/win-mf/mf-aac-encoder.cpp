@@ -7,47 +7,56 @@
 #include <wmcodecdsp.h>
 #include <comdef.h>
 
-#define blog_mf(level, format, ...) blog(level, "MFAAC: " format, ##__VA_ARGS__)
-#define blog_com(msg, hr) blog_mf(LOG_ERROR, msg " failed,  %S (0x%08lx)", \
+#define MF_LOG_AAC(level, format, ...) MF_LOG_ENCODER("AAC", ObsEncoder(), level, format, ##__VA_ARGS__)
+
+#define MF_LOG_COM(msg, hr) MF_LOG_AAC(LOG_ERROR, \
+		msg " failed,  %S (0x%08lx)", \
 		_com_error(hr).ErrorMessage(), hr)
+
 #define HRC(r) \
 	if(FAILED(hr = (r))) { \
-		blog_com(#r, hr); \
+		MF_LOG_COM(#r, hr); \
 		goto fail; \
 	}
 
-static const UINT32 VALID_BITRATES[] =
+using namespace MFAAC;
+
+#define CONST_ARRAY(name, ...) const UINT32 name ## _ARR[] = { __VA_ARGS__, UINT32_MAX }; \
+		const UINT32 *MFAAC::name = name ## _ARR
+
+CONST_ARRAY(VALID_BITRATES, 96, 128, 160, 192);
+CONST_ARRAY(VALID_CHANNELS, 1, 2);
+CONST_ARRAY(VALID_BITS_PER_SAMPLE, 16);
+CONST_ARRAY(VALID_SAMPLERATES, 44100, 48000 );
+
+#undef CONST_ARRAY
+
+UINT32 MFAAC::FindBestMatch(const UINT32 *validValues, UINT32 value)
 {
-	96,  // 120,
-	128, // 160,
-	160, // 200,
-	192  // 240
-};
+	int i = 0;
+	for (i = 0;; i++) {
+		if (validValues[i] == UINT32_MAX)
+			break;
+		if (validValues[i] < value)
+			continue;
+		if (validValues[i] >= value)
+			return validValues[i];
+	}
 
-static const UINT32 VALID_CHANNELS[] =
+	// Only downgrade if no values are better
+	return validValues[i - 1];
+}
+
+bool MFAAC::IsValid(const UINT32 *validValues, UINT32 value)
 {
-	1,
-	2
-};
-
-static const UINT32 VALID_BITS_PER_SAMPLE[] = {
-	16
-};
-
-static const UINT32 VALID_SAMPLERATES[] = {
-	44100,
-	48000
-};
-
-template <size_t N>
-bool IsValid(const UINT32(&validValues)[N], UINT32 value)
-{
-	for (int i = 0; i < N; i++) {
+	for (int i = 0;; i++) {
+		if (validValues[i] == UINT32_MAX)
+			return false;
 		if (validValues[i] == value)
 			return true;
 	}
-	return false;
 };
+
 
 HRESULT MFAAC::Encoder::CreateMediaTypes(ComPtr<IMFMediaType> &i,
 		ComPtr<IMFMediaType> &o)
@@ -110,20 +119,20 @@ bool MFAAC::Encoder::Initialize()
 	ComPtr<IMFMediaType> inputType, outputType;
 
 	if (!IsValid(VALID_BITRATES, bitrate)) {
-		blog_mf(LOG_WARNING, "invalid bitrate (kbps) '%d'", bitrate);
+		MF_LOG_AAC(LOG_WARNING, "invalid bitrate (kbps) '%d'", bitrate);
 		return false;
 	}
 	if (!IsValid(VALID_CHANNELS, channels)) {
-		blog_mf(LOG_WARNING, "invalid channel count '%d", channels);
+		MF_LOG_AAC(LOG_WARNING, "invalid channel count '%d", channels);
 		return false;
 	}
 	if (!IsValid(VALID_SAMPLERATES, sampleRate)) {
-		blog_mf(LOG_WARNING, "invalid sample rate (hz) '%d", 
+		MF_LOG_AAC(LOG_WARNING, "invalid sample rate (hz) '%d",
 				sampleRate);
 		return false;
 	}
 	if (!IsValid(VALID_BITS_PER_SAMPLE, bitsPerSample)) {
-		blog_mf(LOG_WARNING, "invalid bits-per-sample (bits) '%d'",
+		MF_LOG_AAC(LOG_WARNING, "invalid bits-per-sample (bits) '%d'",
 				bitsPerSample);
 		return false;
 	}
@@ -142,7 +151,7 @@ bool MFAAC::Encoder::Initialize()
 	HRC(transform_->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM,
 			NULL));
 
-	blog_mf(LOG_INFO, "encoder 'mf_aac' created\n"
+	MF_LOG_AAC(LOG_INFO, "encoder created\n"
 			"\tbitrate: %d\n"
 			"\tchannels: %d\n"
 			"\tsample rate: %d\n"
@@ -156,7 +165,7 @@ fail:
 	return false;
 }
 
-static HRESULT CreateEmptySample(ComPtr<IMFSample> &sample,
+HRESULT MFAAC::Encoder::CreateEmptySample(ComPtr<IMFSample> &sample,
 		ComPtr<IMFMediaBuffer> &buffer, DWORD length)
 {
 	HRESULT hr;
@@ -202,7 +211,7 @@ fail:
 }
 
 bool MFAAC::Encoder::ProcessInput(UINT8 *data, UINT32 data_length,
-		UINT64 pts, MFAAC::Status *status)
+		UINT64 pts, Status *status)
 {
 	HRESULT hr;
 	ComPtr<IMFSample> sample;
@@ -228,23 +237,23 @@ bool MFAAC::Encoder::ProcessInput(UINT8 *data, UINT32 data_length,
 
 	hr = transform->ProcessInput(0, sample, 0);
 	if (hr == MF_E_NOTACCEPTING) {
-		*status = MFAAC::NOT_ACCEPTING;
+		*status = NOT_ACCEPTING;
 		return true;
 	} else if (FAILED(hr)) {
-		blog_com("process input", hr);
+		MF_LOG_COM("process input", hr);
 		return false;
 	}
 
-	*status = MFAAC::SUCCESS;
+	*status = SUCCESS;
 	return true;
 
 fail:
-	*status = MFAAC::FAILURE;
+	*status = FAILURE;
 	return false;
 }
 
 bool MFAAC::Encoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
-		UINT64 *pts, MFAAC::Status *status)
+		UINT64 *pts, Status *status)
 {
 	HRESULT hr;
 
@@ -258,7 +267,7 @@ bool MFAAC::Encoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 
 	HRC(transform->GetOutputStatus(&outputFlags));
 	if (outputFlags != MFT_OUTPUT_STATUS_SAMPLE_READY) {
-		*status = MFAAC::NEED_MORE_INPUT;
+		*status = NEED_MORE_INPUT;
 		return true;
 	}
 
@@ -269,10 +278,10 @@ bool MFAAC::Encoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 
 	hr = transform->ProcessOutput(0, 1, &output, &outputStatus);
 	if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) {
-		*status = MFAAC::NEED_MORE_INPUT;
+		*status = NEED_MORE_INPUT;
 		return true;
 	} else if (FAILED(hr)) {
-		blog_com("process output", hr);
+		MF_LOG_COM("process output", hr);
 		return false;
 	}
 
@@ -287,11 +296,11 @@ bool MFAAC::Encoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 	*pts = samplePts * 100;
 	*data = &packetBuffer[0];
 	*dataLength = bufferLength;
-	*status = MFAAC::SUCCESS;
+	*status = SUCCESS;
 	return true;
 
 fail:
-	*status = MFAAC::FAILURE;
+	*status = FAILURE;
 	return false;
 }
 

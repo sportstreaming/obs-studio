@@ -49,6 +49,7 @@ static OBSEncoder CreateAACEncoder(const char *name, size_t idx)
 	static const char *encoders[] = {
 		"CoreAudio_AAC",
 		"libfdk_aac",
+		"mf_aac",
 		"ffmpeg_aac"
 	};
 
