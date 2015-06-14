@@ -19,8 +19,7 @@
 			format_name, obs_encoder_get_name(encoder), \
 			##__VA_ARGS__)
 
-namespace MFAAC
-{
+namespace MFAAC {
 
 enum Status {
 	FAILURE,
@@ -29,13 +28,16 @@ enum Status {
 	NEED_MORE_INPUT
 };
 
-class Encoder
-{
+class Encoder {
 public:
 	Encoder(const obs_encoder_t *encoder, UINT32 bitrate, UINT32 channels,
 			UINT32 sampleRate, UINT32 bitsPerSample)
-	: encoder(encoder), bitrate(bitrate), channels(channels),
-			sampleRate(sampleRate), bitsPerSample(bitsPerSample) {}
+		: encoder(encoder),
+		  bitrate(bitrate),
+		  channels(channels),
+		  sampleRate(sampleRate),
+		  bitsPerSample(bitsPerSample)
+	{}
 
 	Encoder& operator=(Encoder const&) = delete;
 

@@ -7,7 +7,8 @@
 #include <wmcodecdsp.h>
 #include <comdef.h>
 
-#define MF_LOG_AAC(level, format, ...) MF_LOG_ENCODER("AAC", ObsEncoder(), level, format, ##__VA_ARGS__)
+#define MF_LOG_AAC(level, format, ...) \
+	MF_LOG_ENCODER("AAC", ObsEncoder(), level, format, ##__VA_ARGS__)
 
 #define MF_LOG_COM(msg, hr) MF_LOG_AAC(LOG_ERROR, \
 		msg " failed,  %S (0x%08lx)", \
@@ -21,8 +22,9 @@
 
 using namespace MFAAC;
 
-#define CONST_ARRAY(name, ...) const UINT32 name ## _ARR[] = { __VA_ARGS__, UINT32_MAX }; \
-		const UINT32 *MFAAC::name = name ## _ARR
+#define CONST_ARRAY(name, ...) \
+	const UINT32 name ## _ARR[] = { __VA_ARGS__, UINT32_MAX }; \
+	const UINT32 *MFAAC::name = name ## _ARR
 
 CONST_ARRAY(VALID_BITRATES, 96, 128, 160, 192);
 CONST_ARRAY(VALID_CHANNELS, 1, 2);
@@ -187,8 +189,7 @@ HRESULT MFAAC::Encoder::EnsureCapacity(ComPtr<IMFSample> &sample, DWORD length)
 
 	if (!sample) {
 		HRC(CreateEmptySample(sample, buffer, length));
-	}
-	else {
+	} else {
 		HRC(sample->GetBufferByIndex(0, &buffer));
 	}
 
@@ -197,8 +198,7 @@ HRESULT MFAAC::Encoder::EnsureCapacity(ComPtr<IMFSample> &sample, DWORD length)
 		HRC(sample->RemoveAllBuffers());
 		HRC(MFCreateMemoryBuffer(length, &buffer));
 		HRC(sample->AddBuffer(buffer));
-	}
-	else {
+	} else {
 		buffer->SetCurrentLength(0);
 	}
 
