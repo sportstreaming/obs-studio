@@ -22,9 +22,7 @@
 
 using namespace MFAAC;
 
-#define CONST_ARRAY(name, ...) \
-	const UINT32 name ## _ARR[] = { __VA_ARGS__, UINT32_MAX }; \
-	const UINT32 *MFAAC::name = name ## _ARR
+#define CONST_ARRAY(name, ...) static const UINT32 name[] = { __VA_ARGS__ };
 
 CONST_ARRAY(VALID_BITRATES, 96, 128, 160, 192);
 CONST_ARRAY(VALID_CHANNELS, 1, 2);
@@ -33,32 +31,68 @@ CONST_ARRAY(VALID_SAMPLERATES, 44100, 48000 );
 
 #undef CONST_ARRAY
 
-UINT32 MFAAC::FindBestMatch(const UINT32 *validValues, UINT32 value)
+template <int N>
+static UINT32 FindBestMatch(const UINT32 (&validValues)[N], UINT32 value)
 {
-	int i = 0;
-	for (i = 0;; i++) {
-		if (validValues[i] == UINT32_MAX)
-			break;
-		if (validValues[i] < value)
-			continue;
-		if (validValues[i] >= value)
-			return validValues[i];
+	for (UINT32 val : validValues) {
+		if (val >= value)
+			return val;
 	}
 
 	// Only downgrade if no values are better
-	return validValues[i - 1];
+	return validValues[N - 1];
 }
 
-bool MFAAC::IsValid(const UINT32 *validValues, UINT32 value)
+template <int N>
+static bool IsValid(const UINT32 (&validValues)[N], UINT32 value)
 {
-	for (int i = 0;; i++) {
-		if (validValues[i] == UINT32_MAX)
-			return false;
-		if (validValues[i] == value)
+	for (UINT32 val : validValues) {
+		if (val == value)
 			return true;
 	}
+
+	return false;
 };
 
+UINT32 MFAAC::FindBestBitrateMatch(UINT32 value)
+{
+	return FindBestMatch(VALID_BITRATES, value);
+}
+
+UINT32 MFAAC::FindBestChannelsMatch(UINT32 value)
+{
+	return FindBestMatch(VALID_CHANNELS, value);
+}
+
+UINT32 MFAAC::FindBestBitsPerSampleMatch(UINT32 value)
+{
+	return FindBestMatch(VALID_BITS_PER_SAMPLE, value);
+}
+
+UINT32 MFAAC::FindBestSamplerateMatch(UINT32 value)
+{
+	return FindBestMatch(VALID_SAMPLERATES, value);
+}
+
+bool MFAAC::BitrateValid(UINT32 value)
+{
+	return IsValid(VALID_BITRATES, value);
+}
+
+bool MFAAC::ChannelsValid(UINT32 value)
+{
+	return IsValid(VALID_BITRATES, value);
+}
+
+bool MFAAC::BitsPerSampleValid(UINT32 value)
+{
+	return IsValid(VALID_BITRATES, value);
+}
+
+bool MFAAC::SamplerateValid(UINT32 value)
+{
+	return IsValid(VALID_BITRATES, value);
+}
 
 HRESULT MFAAC::Encoder::CreateMediaTypes(ComPtr<IMFMediaType> &i,
 		ComPtr<IMFMediaType> &o)
@@ -120,20 +154,20 @@ bool MFAAC::Encoder::Initialize()
 	ComPtr<IMFTransform> transform_;
 	ComPtr<IMFMediaType> inputType, outputType;
 
-	if (!IsValid(VALID_BITRATES, bitrate)) {
+	if (!BitrateValid(bitrate)) {
 		MF_LOG_AAC(LOG_WARNING, "invalid bitrate (kbps) '%d'", bitrate);
 		return false;
 	}
-	if (!IsValid(VALID_CHANNELS, channels)) {
+	if (!ChannelsValid(channels)) {
 		MF_LOG_AAC(LOG_WARNING, "invalid channel count '%d", channels);
 		return false;
 	}
-	if (!IsValid(VALID_SAMPLERATES, sampleRate)) {
+	if (!SamplerateValid(sampleRate)) {
 		MF_LOG_AAC(LOG_WARNING, "invalid sample rate (hz) '%d",
 				sampleRate);
 		return false;
 	}
-	if (!IsValid(VALID_BITS_PER_SAMPLE, bitsPerSample)) {
+	if (!BitsPerSampleValid(bitsPerSample)) {
 		MF_LOG_AAC(LOG_WARNING, "invalid bits-per-sample (bits) '%d'",
 				bitsPerSample);
 		return false;

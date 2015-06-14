@@ -44,8 +44,7 @@ static void *MFAAC_Create(obs_data_t *settings, obs_encoder_t *encoder)
 	UINT32 sampleRate = audio_output_get_sample_rate(audio);
 	UINT32 bitsPerSample = 16;
 
-	UINT32 recommendedSampleRate = FindBestMatch(VALID_SAMPLERATES,
-			sampleRate);
+	UINT32 recommendedSampleRate = FindBestSamplerateMatch(sampleRate);
 	if (recommendedSampleRate != sampleRate) {
 		MF_LOG_ENCODER("aac", encoder, LOG_WARNING,
 			"unsupported sample rate; "
@@ -54,8 +53,7 @@ static void *MFAAC_Create(obs_data_t *settings, obs_encoder_t *encoder)
 		sampleRate = recommendedSampleRate;
 	}
 
-	UINT32 recommendedBitRate = FindBestMatch(VALID_BITRATES,
-		bitrate);
+	UINT32 recommendedBitRate = FindBestBitrateMatch(bitrate);
 	if (recommendedBitRate != bitrate) {
 		MF_LOG_ENCODER("aac", encoder, LOG_WARNING,
 			"unsupported bitrate; "
@@ -139,8 +137,7 @@ static void MFAAC_GetAudioInfo(void *data, struct audio_convert_info *info)
 	UNUSED_PARAMETER(data);
 
 	info->format = AUDIO_FORMAT_16BIT;
-	info->samples_per_sec = FindBestMatch(VALID_SAMPLERATES,
-			info->samples_per_sec);
+	info->samples_per_sec = FindBestSamplerateMatch(info->samples_per_sec);
 }
 
 static size_t MFAAC_GetFrameSize(void *data)

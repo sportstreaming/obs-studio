@@ -77,13 +77,15 @@ private:
 	UINT8 extraData[5];
 };
 
-extern const UINT32 *VALID_BITRATES;
-extern const UINT32 *VALID_CHANNELS;
-extern const UINT32 *VALID_BITS_PER_SAMPLE;
-extern const UINT32 *VALID_SAMPLERATES;
 static const UINT32 FrameSize = 1024;
 
-UINT32 FindBestMatch(const UINT32 *validValues, UINT32 value);
-bool IsValid(const UINT32 *validValues, UINT32 value);
+UINT32 FindBestBitrateMatch(UINT32 value);
+UINT32 FindBestChannelsMatch(UINT32 value);
+UINT32 FindBestBitsPerSampleMatch(UINT32 value);
+UINT32 FindBestSamplerateMatch(UINT32 value);
+bool BitrateValid(UINT32 value);
+bool ChannelsValid(UINT32 value);
+bool BitsPerSampleValid(UINT32 value);
+bool SamplerateValid(UINT32 value);
 
 }
