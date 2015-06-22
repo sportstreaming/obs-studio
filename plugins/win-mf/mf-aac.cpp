@@ -46,7 +46,7 @@ static void *MFAAC_Create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	UINT32 recommendedSampleRate = FindBestSamplerateMatch(sampleRate);
 	if (recommendedSampleRate != sampleRate) {
-		MF_LOG_ENCODER("aac", encoder, LOG_WARNING,
+		MF_LOG_ENCODER("AAC", encoder, LOG_WARNING,
 			"unsupported sample rate; "
 			"resampling to best guess '%d' instead of '%d'",
 			recommendedSampleRate, sampleRate);
@@ -55,7 +55,7 @@ static void *MFAAC_Create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	UINT32 recommendedBitRate = FindBestBitrateMatch(bitrate);
 	if (recommendedBitRate != bitrate) {
-		MF_LOG_ENCODER("aac", encoder, LOG_WARNING,
+		MF_LOG_ENCODER("AAC", encoder, LOG_WARNING,
 			"unsupported bitrate; "
 			"resampling to best guess '%d' instead of '%d'",
 			recommendedBitRate, bitrate);
