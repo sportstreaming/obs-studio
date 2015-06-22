@@ -81,17 +81,17 @@ bool MFAAC::BitrateValid(UINT32 value)
 
 bool MFAAC::ChannelsValid(UINT32 value)
 {
-	return IsValid(VALID_BITRATES, value);
+	return IsValid(VALID_CHANNELS, value);
 }
 
 bool MFAAC::BitsPerSampleValid(UINT32 value)
 {
-	return IsValid(VALID_BITRATES, value);
+	return IsValid(VALID_BITS_PER_SAMPLE, value);
 }
 
 bool MFAAC::SamplerateValid(UINT32 value)
 {
-	return IsValid(VALID_BITRATES, value);
+	return IsValid(VALID_SAMPLERATES, value);
 }
 
 HRESULT MFAAC::Encoder::CreateMediaTypes(ComPtr<IMFMediaType> &i,
