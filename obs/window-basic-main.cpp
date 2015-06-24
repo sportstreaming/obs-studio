@@ -228,6 +228,9 @@ static obs_data_t *GenerateSaveData(obs_data_array_t *sceneOrder)
 	obs_source_t     *currentScene = obs_get_output_source(0);
 	const char       *sceneName   = obs_source_get_name(currentScene);
 
+	const char *sceneCollection = config_get_string(App()->GlobalConfig(),
+			"Basic", "SceneCollection");
+
 	SaveAudioDevice(DESKTOP_AUDIO_1, 1, saveData);
 	SaveAudioDevice(DESKTOP_AUDIO_2, 2, saveData);
 	SaveAudioDevice(AUX_AUDIO_1,     3, saveData);
@@ -236,6 +239,7 @@ static obs_data_t *GenerateSaveData(obs_data_array_t *sceneOrder)
 
 	obs_data_set_string(saveData, "current_scene", sceneName);
 	obs_data_set_array(saveData, "scene_order", sceneOrder);
+	obs_data_set_string(saveData, "name", sceneCollection);
 	obs_data_set_array(saveData, "sources", sourcesArray);
 	obs_data_array_release(sourcesArray);
 	obs_source_release(currentScene);
@@ -414,6 +418,7 @@ void OBSBasic::Load(const char *file)
 	BPtr<char> jsonData = os_quick_read_utf8_file(file);
 	if (!jsonData) {
 		CreateDefaultScene();
+		SaveProject();
 		return;
 	}
 
@@ -422,6 +427,7 @@ void OBSBasic::Load(const char *file)
 	obs_data_array_t *sources    = obs_data_get_array(data, "sources");
 	const char       *sceneName = obs_data_get_string(data,
 			"current_scene");
+	const char       *name = obs_data_get_string(data, "name");
 	obs_source_t     *curScene;
 
 	LoadAudioDevice(DESKTOP_AUDIO_1, 1, data);
@@ -441,6 +447,15 @@ void OBSBasic::Load(const char *file)
 
 	obs_data_array_release(sources);
 	obs_data_array_release(sceneOrder);
+
+	std::string file_base = strrchr(file, '/') + 1;
+	file_base.erase(file_base.size() - 5, 5);
+
+	config_set_string(App()->GlobalConfig(), "Basic", "SceneCollection",
+			name);
+	config_set_string(App()->GlobalConfig(), "Basic", "SceneCollectionFile",
+			file_base.c_str());
+
 	obs_data_release(data);
 }
 
@@ -693,11 +708,23 @@ void OBSBasic::ResetOutputs()
 
 void OBSBasic::OBSInit()
 {
+	const char *sceneCollection = config_get_string(App()->GlobalConfig(),
+			"Basic", "SceneCollectionFile");
 	char savePath[512];
-	int ret = GetConfigPath(savePath, sizeof(savePath),
-			"obs-studio/basic/scenes.json");
+	char fileName[512];
+	int ret;
+
+	if (!sceneCollection)
+		throw "Failed to get scene collection name";
+
+	ret = snprintf(fileName, 512, "obs-studio/basic/scenes/%s.json",
+			sceneCollection);
 	if (ret <= 0)
-		throw "Failed to get scenes.json file path";
+		throw "Failed to create scene collection file name";
+
+	ret = GetConfigPath(savePath, sizeof(savePath), fileName);
+	if (ret <= 0)
+		throw "Failed to get scene collection json file path";
 
 	/* make sure it's fully displayed before doing any initialization */
 	show();
@@ -763,6 +790,8 @@ void OBSBasic::OBSInit()
 		SetAeroEnabled(!disableAero);
 	}
 #endif
+
+	RefreshSceneCollections();
 }
 
 void OBSBasic::InitHotkeys()
@@ -983,9 +1012,21 @@ OBSBasic::~OBSBasic()
 
 void OBSBasic::SaveProject()
 {
+	const char *sceneCollection = config_get_string(App()->GlobalConfig(),
+			"Basic", "SceneCollectionFile");
 	char savePath[512];
-	int ret = GetConfigPath(savePath, sizeof(savePath),
-			"obs-studio/basic/scenes.json");
+	char fileName[512];
+	int ret;
+
+	if (!sceneCollection)
+		return;
+
+	ret = snprintf(fileName, 512, "obs-studio/basic/scenes/%s.json",
+			sceneCollection);
+	if (ret <= 0)
+		return;
+
+	ret = GetConfigPath(savePath, sizeof(savePath), fileName);
 	if (ret <= 0)
 		return;
 
@@ -1946,17 +1987,7 @@ void OBSBasic::closeEvent(QCloseEvent *event)
 	/* Check all child dialogs and ensure they run their proper closeEvent
 	 * methods before exiting the application.  Otherwise Qt doesn't send
 	 * the proper QCloseEvent messages. */
-	QList<QDialog*> childDialogs = this->findChildren<QDialog *>();
-	if (!childDialogs.isEmpty()) {
-		for (int i = 0; i < childDialogs.size(); ++i) {
-			childDialogs.at(i)->close();
-		}
-	}
-
-	for (QPointer<QWidget> &projector : projectors) {
-		delete projector;
-		projector.clear();
-	}
+	CloseDialogs();
 
 	// remove draw callback in case our drawable surfaces go away before
 	// the destructor gets called

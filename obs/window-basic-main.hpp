@@ -168,6 +168,12 @@ private:
 	void GetAudioSourceProperties();
 	void VolControlContextMenu();
 
+	void AddSceneCollection(bool create_new);
+	void RefreshSceneCollections();
+	void ClearSceneData();
+	void ChangeSceneCollection();
+	void CloseDialogs();
+
 	obs_hotkey_pair_id streamingHotkeys, recordingHotkeys;
 
 public slots:
@@ -330,6 +336,11 @@ private slots:
 	void on_preview_customContextMenuRequested(const QPoint &pos);
 	void on_previewDisabledLabel_customContextMenuRequested(
 			const QPoint &pos);
+
+	void on_actionNewSceneCollection_triggered();
+	void on_actionDupSceneCollection_triggered();
+	void on_actionRenameSceneCollection_triggered();
+	void on_actionRemoveSceneCollection_triggered();
 
 	void logUploadFinished(const QString &text, const QString &error);
 
