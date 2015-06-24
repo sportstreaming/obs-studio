@@ -119,8 +119,8 @@ OBSBasic::OBSBasic(QWidget *parent)
 	}
 
 	char styleSheetPath[512];
-	int ret = GetConfigPath(styleSheetPath, sizeof(styleSheetPath),
-			"obs-studio/basic/stylesheet.qss");
+	int ret = GetProfilePath(styleSheetPath, sizeof(styleSheetPath),
+			"stylesheet.qss");
 	if (ret > 0) {
 		if (QFile::exists(styleSheetPath)) {
 			QString path = QString("file:///") +
@@ -459,7 +459,7 @@ void OBSBasic::Load(const char *file)
 	obs_data_release(data);
 }
 
-#define SERVICE_PATH "obs-studio/basic/service.json"
+#define SERVICE_PATH "service.json"
 
 void OBSBasic::SaveService()
 {
@@ -467,7 +467,7 @@ void OBSBasic::SaveService()
 		return;
 
 	char serviceJsonPath[512];
-	int ret = GetConfigPath(serviceJsonPath, sizeof(serviceJsonPath),
+	int ret = GetProfilePath(serviceJsonPath, sizeof(serviceJsonPath),
 			SERVICE_PATH);
 	if (ret <= 0)
 		return;
@@ -491,7 +491,7 @@ bool OBSBasic::LoadService()
 	const char *type;
 
 	char serviceJsonPath[512];
-	int ret = GetConfigPath(serviceJsonPath, sizeof(serviceJsonPath),
+	int ret = GetProfilePath(serviceJsonPath, sizeof(serviceJsonPath),
 			SERVICE_PATH);
 	if (ret <= 0)
 		return false;
@@ -636,8 +636,19 @@ bool OBSBasic::InitBasicConfigDefaults()
 bool OBSBasic::InitBasicConfig()
 {
 	char configPath[512];
-	int ret = GetConfigPath(configPath, sizeof(configPath),
-			"obs-studio/basic/basic.ini");
+
+	int ret = GetProfilePath(configPath, sizeof(configPath), "");
+	if (ret <= 0) {
+		OBSErrorBox(nullptr, "Failed to get profile path");
+		return false;
+	}
+
+	if (os_mkdir(configPath) == MKDIR_ERROR) {
+		OBSErrorBox(nullptr, "Failed to create profile path");
+		return false;
+	}
+
+	ret = GetProfilePath(configPath, sizeof(configPath), "basic.ini");
 	if (ret <= 0) {
 		OBSErrorBox(nullptr, "Failed to get base.ini path");
 		return false;
