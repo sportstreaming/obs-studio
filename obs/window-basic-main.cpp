@@ -660,6 +660,14 @@ bool OBSBasic::InitBasicConfig()
 		return false;
 	}
 
+	if (config_get_string(basicConfig, "General", "Name") == nullptr) {
+		const char *curName = config_get_string(App()->GlobalConfig(),
+				"Basic", "Profile");
+
+		config_set_string(basicConfig, "General", "Name", curName);
+		basicConfig.Save();
+	}
+
 	return InitBasicConfigDefaults();
 }
 
@@ -803,6 +811,7 @@ void OBSBasic::OBSInit()
 #endif
 
 	RefreshSceneCollections();
+	RefreshProfiles();
 }
 
 void OBSBasic::InitHotkeys()
@@ -3323,7 +3332,7 @@ int OBSBasic::GetProfilePath(char *path, size_t size, const char *file) const
 {
 	char profiles_path[512];
 	const char *profile = config_get_string(App()->GlobalConfig(),
-			"Basic", "Profile");
+			"Basic", "ProfileDir");
 	int ret;
 
 	if (!profile)

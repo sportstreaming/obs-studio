@@ -175,6 +175,13 @@ private:
 	void ChangeSceneCollection();
 	void CloseDialogs();
 
+	void LoadProfile();
+	void ResetProfileData();
+	bool AddProfile(bool create_new, const char *title, const char *text);
+	void DeleteProfile(const char *profile_dir);
+	void RefreshProfiles();
+	void ChangeProfile();
+
 	obs_hotkey_pair_id streamingHotkeys, recordingHotkeys;
 
 public slots:
@@ -342,6 +349,11 @@ private slots:
 	void on_actionDupSceneCollection_triggered();
 	void on_actionRenameSceneCollection_triggered();
 	void on_actionRemoveSceneCollection_triggered();
+
+	void on_actionNewProfile_triggered();
+	void on_actionDupProfile_triggered();
+	void on_actionRenameProfile_triggered();
+	void on_actionRemoveProfile_triggered();
 
 	void logUploadFinished(const QString &text, const QString &error);
 
