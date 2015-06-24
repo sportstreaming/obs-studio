@@ -3302,3 +3302,27 @@ void OBSBasic::OpenSceneProjector()
 
 	OpenProjector(obs_scene_get_source(scene), monitor);
 }
+
+int OBSBasic::GetProfilePath(char *path, size_t size, const char *file) const
+{
+	char profiles_path[512];
+	const char *profile = config_get_string(App()->GlobalConfig(),
+			"Basic", "Profile");
+	int ret;
+
+	if (!profile)
+		return -1;
+	if (!path)
+		return -1;
+	if (!file)
+		file = "";
+
+	ret = GetConfigPath(profiles_path, 512, "obs-studio/basic/profiles");
+	if (ret <= 0)
+		return ret;
+
+	if (!*file)
+		return snprintf(path, size, "%s/%s", profiles_path, profile);
+
+	return snprintf(path, size, "%s/%s/%s", profiles_path, profile, file);
+}
