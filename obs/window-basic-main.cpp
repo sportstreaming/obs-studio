@@ -2802,6 +2802,9 @@ void OBSBasic::StopStreaming()
 
 	if (outputHandler->StreamingActive())
 		outputHandler->StopStreaming();
+
+	if (!outputHandler->Active())
+		ui->profileMenu->setEnabled(true);
 }
 
 void OBSBasic::StreamingStart()
@@ -2868,6 +2871,9 @@ void OBSBasic::StopRecording()
 
 	if (outputHandler->RecordingActive())
 		outputHandler->StopRecording();
+
+	if (!outputHandler->Active())
+		ui->profileMenu->setEnabled(true);
 }
 
 void OBSBasic::RecordingStart()
