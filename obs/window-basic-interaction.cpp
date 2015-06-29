@@ -21,6 +21,7 @@
 #include "qt-wrappers.hpp"
 #include "display-helpers.hpp"
 
+#include <QKeyEvent>
 #include <QCloseEvent>
 #include <QScreen>
 #include <QWindow>
@@ -410,4 +411,21 @@ void OBSBasicInteraction::Init()
 	if (display)
 		obs_display_add_draw_callback(display,
 				OBSBasicInteraction::DrawPreview, this);
+}
+
+bool OBSEventFilter::eventFilter(QObject *obj, QEvent *event)
+{
+	QDialog *dialog = qobject_cast<QDialog*>(obj);
+
+	if (dialog && event->type() == QEvent::KeyPress) {
+		QKeyEvent *keyEvent =
+			reinterpret_cast<QKeyEvent*>(event);
+
+		if (keyEvent->key() == Qt::Key_Enter ||
+		    keyEvent->key() == Qt::Key_Escape) {
+			return QObject::eventFilter(obj, event);
+		}
+	}
+
+	return filter(obj, event);
 }
