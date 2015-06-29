@@ -133,14 +133,23 @@ static bool SceneCollectionExists(const char *find_name)
 static bool GetSceneCollectionName(QWidget *parent, std::string &name,
 		std::string &file, const char *old_name = nullptr)
 {
+	bool rename = old_name != nullptr;
+	const char *title;
+	const char *text;
 	char path[512];
 	size_t len;
 	int ret;
 
+	if (rename) {
+		title = Str("Basic.Main.AddSceneCollection.Title");
+		text  = Str("Basic.Main.AddSceneCollection.Text");
+	} else {
+		title = Str("Basic.Main.RenameSceneCollection.Title");
+		text  = Str("Basic.Main.RenameSceneCollection.Text");
+	}
+
 	for (;;) {
-		bool success = NameDialog::AskForName(parent,
-				Str("Basic.Main.AddSceneCollection.Title"),
-				Str("Basic.Main.AddSceneCollection.Text"),
+		bool success = NameDialog::AskForName(parent, title, text,
 				name, QT_UTF8(old_name));
 		if (!success) {
 			return false;
