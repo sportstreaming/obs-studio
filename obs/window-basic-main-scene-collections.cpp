@@ -141,11 +141,11 @@ static bool GetSceneCollectionName(QWidget *parent, std::string &name,
 	int ret;
 
 	if (rename) {
-		title = Str("Basic.Main.AddSceneCollection.Title");
-		text  = Str("Basic.Main.AddSceneCollection.Text");
-	} else {
 		title = Str("Basic.Main.RenameSceneCollection.Title");
 		text  = Str("Basic.Main.RenameSceneCollection.Text");
+	} else {
+		title = Str("Basic.Main.AddSceneCollection.Title");
+		text  = Str("Basic.Main.AddSceneCollection.Text");
 	}
 
 	for (;;) {
@@ -220,6 +220,7 @@ void OBSBasic::AddSceneCollection(bool create_new)
 void OBSBasic::RefreshSceneCollections()
 {
 	QList<QAction*> menuActions = ui->sceneCollectionMenu->actions();
+	int count = 0;
 
 	for (int i = 0; i < menuActions.count(); i++) {
 		QVariant v = menuActions[i]->property("file_name");
@@ -244,10 +245,13 @@ void OBSBasic::RefreshSceneCollections()
 		action->setChecked(strcmp(name, cur_name) == 0);
 
 		ui->sceneCollectionMenu->addAction(action);
+		count++;
 		return true;
 	};
 
 	EnumSceneCollections(addCollection);
+
+	ui->actionRemoveSceneCollection->setEnabled(count > 1);
 }
 
 void OBSBasic::on_actionNewSceneCollection_triggered()
