@@ -177,7 +177,8 @@ private:
 
 	void LoadProfile();
 	void ResetProfileData();
-	bool AddProfile(bool create_new, const char *title, const char *text);
+	bool AddProfile(bool create_new, const char *title, const char *text,
+			const char *init_text = nullptr);
 	void DeleteProfile(const char *profile_dir);
 	void RefreshProfiles();
 	void ChangeProfile();

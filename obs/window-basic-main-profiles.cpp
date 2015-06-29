@@ -183,13 +183,14 @@ static bool CopyProfile(const char *from_partial, const char *to)
 	return true;
 }
 
-bool OBSBasic::AddProfile(bool create_new, const char *title, const char *text)
+bool OBSBasic::AddProfile(bool create_new, const char *title, const char *text,
+		const char *init_text)
 {
 	std::string new_name;
 	std::string new_dir;
 	ConfigFile config;
 
-	if (!GetProfileName(this, new_name, new_dir, title, text))
+	if (!GetProfileName(this, new_name, new_dir, title, text, init_text))
 		return false;
 
 	std::string cur_dir = config_get_string(App()->GlobalConfig(),
@@ -341,10 +342,12 @@ void OBSBasic::on_actionRenameProfile_triggered()
 {
 	std::string cur_dir = config_get_string(App()->GlobalConfig(),
 			"Basic", "ProfileDir");
+	const char *cur_name = config_get_string(App()->GlobalConfig(),
+			"Basic", "Profile");
 
 	/* Duplicate and delete in case there are any issues in the process */
 	bool success = AddProfile(false, Str("RenameProfile.Title"),
-			Str("RenameProfile.Text"));
+			Str("RenameProfile.Text"), cur_name);
 	if (success) {
 		DeleteProfile(cur_dir.c_str());
 		RefreshProfiles();
