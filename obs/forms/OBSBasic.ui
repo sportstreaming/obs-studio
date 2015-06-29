@@ -650,8 +650,8 @@
    </widget>
    <addaction name="menu_File"/>
    <addaction name="menuBasic_MainMenu_Edit"/>
-   <addaction name="sceneCollectionMenu"/>
    <addaction name="profileMenu"/>
+   <addaction name="sceneCollectionMenu"/>
    <addaction name="menuBasic_MainMenu_Help"/>
   </widget>
   <widget class="OBSBasicStatusBar" name="statusbar"/>
