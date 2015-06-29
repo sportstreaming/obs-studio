@@ -2809,6 +2809,7 @@ void OBSBasic::StreamingStart()
 	ui->streamButton->setText(QTStr("Basic.Main.StopStreaming"));
 	ui->streamButton->setEnabled(true);
 	ui->statusbar->StreamStarted(outputHandler->streamOutput);
+	ui->profileMenu->setEnabled(false);
 }
 
 void OBSBasic::StreamingStop(int code)
@@ -2844,6 +2845,9 @@ void OBSBasic::StreamingStop(int code)
 	ui->streamButton->setText(QTStr("Basic.Main.StartStreaming"));
 	ui->streamButton->setEnabled(true);
 
+	if (!outputHandler->Active())
+		ui->profileMenu->setEnabled(true);
+
 	if (code != OBS_OUTPUT_SUCCESS)
 		QMessageBox::information(this,
 				QTStr("Output.ConnectFail.Title"),
@@ -2870,6 +2874,7 @@ void OBSBasic::RecordingStart()
 {
 	ui->statusbar->RecordingStarted(outputHandler->fileOutput);
 	ui->recordButton->setText(QTStr("Basic.Main.StopRecording"));
+	ui->profileMenu->setEnabled(false);
 }
 
 void OBSBasic::RecordingStop(int code)
@@ -2881,6 +2886,9 @@ void OBSBasic::RecordingStop(int code)
 		QMessageBox::information(this,
 				QTStr("Output.RecordFail.Title"),
 				QTStr("Output.RecordFail.Unsupported"));
+
+	if (!outputHandler->Active())
+		ui->profileMenu->setEnabled(true);
 }
 
 void OBSBasic::on_streamButton_clicked()
