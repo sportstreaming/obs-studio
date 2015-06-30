@@ -236,6 +236,10 @@ bool OBSBasic::AddProfile(bool create_new, const char *title, const char *text,
 	if (create_new)
 		ResetProfileData();
 
+	blog(LOG_INFO, "------------------------------------------------");
+	blog(LOG_INFO, "Created profile '%s' (%s)", new_name.c_str(),
+			create_new ? "clean" : "duplicate");
+
 	config_save(App()->GlobalConfig());
 	return true;
 }
@@ -458,6 +462,9 @@ void OBSBasic::ChangeProfile()
 	config_set_string(App()->GlobalConfig(), "Basic", "Profile", new_name);
 	config_set_string(App()->GlobalConfig(), "Basic", "ProfileDir",
 			new_dir);
+
+	blog(LOG_INFO, "------------------------------------------------");
+	blog(LOG_INFO, "Switched to profile '%s'", QT_TO_UTF8(action->text()));
 
 	config.Swap(basicConfig);
 	InitBasicConfigDefaults();
