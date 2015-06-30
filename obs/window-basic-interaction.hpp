@@ -85,7 +85,10 @@ public:
 	{}
 
 protected:
-	bool eventFilter(QObject *obj, QEvent *event);
+	bool eventFilter(QObject *obj, QEvent *event)
+	{
+		return filter(obj, event);
+	}
 
 private:
 	EventFilterFunc filter;
