@@ -41,6 +41,8 @@ void OBSBasic::CloseDialogs()
 
 void OBSBasic::ClearSceneData()
 {
+	disableSaving++;
+
 	CloseDialogs();
 
 	ClearVolumeControls();
@@ -62,6 +64,8 @@ void OBSBasic::ClearSceneData()
 	};
 
 	obs_enum_sources(cb, nullptr);
+
+	disableSaving--;
 }
 
 static void EnumSceneCollections(

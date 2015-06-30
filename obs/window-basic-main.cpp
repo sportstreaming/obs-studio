@@ -349,6 +349,8 @@ static inline bool HasAudioDevices(const char *source_id)
 
 void OBSBasic::CreateDefaultScene()
 {
+	disableSaving++;
+
 	bool hasDesktopAudio = HasAudioDevices(App()->OutputAudioSource());
 	bool hasInputAudio   = HasAudioDevices(App()->InputAudioSource());
 
@@ -377,6 +379,8 @@ void OBSBasic::CreateDefaultScene()
 	if (hasInputAudio)
 		ResetAudioDevice(App()->InputAudioSource(), "default",
 				Str("Basic.AuxDevice1"), 3);
+
+	disableSaving--;
 }
 
 static void ReorderItemByName(QListWidget *lw, const char *name, int newIndex)
@@ -422,6 +426,8 @@ void OBSBasic::Load(const char *file)
 		return;
 	}
 
+	disableSaving++;
+
 	obs_data_t       *data       = obs_data_create_from_json(jsonData);
 	obs_data_array_t *sceneOrder = obs_data_get_array(data, "scene_order");
 	obs_data_array_t *sources    = obs_data_get_array(data, "sources");
@@ -457,6 +463,8 @@ void OBSBasic::Load(const char *file)
 			file_base.c_str());
 
 	obs_data_release(data);
+
+	disableSaving--;
 }
 
 #define SERVICE_PATH "service.json"
@@ -808,6 +816,7 @@ void OBSBasic::OBSInit()
 
 	RefreshSceneCollections();
 	RefreshProfiles();
+	disableSaving--;
 }
 
 void OBSBasic::InitHotkeys()
@@ -1033,6 +1042,9 @@ OBSBasic::~OBSBasic()
 
 void OBSBasic::SaveProject()
 {
+	if (disableSaving)
+		return;
+
 	const char *sceneCollection = config_get_string(App()->GlobalConfig(),
 			"Basic", "SceneCollectionFile");
 	char savePath[512];
@@ -1172,6 +1184,8 @@ void OBSBasic::AddScene(OBSSource source)
 
 	item->setData(static_cast<int>(QtDataRole::OBSSignals),
 			QVariant::fromValue(handlers));
+
+	SaveProject();
 }
 
 void OBSBasic::RemoveScene(OBSSource source)
@@ -1187,6 +1201,8 @@ void OBSBasic::RemoveScene(OBSSource source)
 			ClearListItems(ui->sources);
 		delete sel;
 	}
+
+	SaveProject();
 }
 
 void OBSBasic::AddSceneItem(OBSSceneItem item)
@@ -1198,6 +1214,7 @@ void OBSBasic::AddSceneItem(OBSSceneItem item)
 		InsertSceneItem(item);
 
 	sourceSceneRefs[source] = sourceSceneRefs[source] + 1;
+	SaveProject();
 }
 
 void OBSBasic::RemoveSceneItem(OBSSceneItem item)
@@ -1224,6 +1241,8 @@ void OBSBasic::RemoveSceneItem(OBSSceneItem item)
 		obs_source_remove(source);
 		sourceSceneRefs.erase(source);
 	}
+
+	SaveProject();
 }
 
 void OBSBasic::UpdateSceneSelection(OBSSource source)
@@ -1266,6 +1285,8 @@ void OBSBasic::RenameSources(QString newName, QString prevName)
 		if (volumes[i]->GetName().compare(prevName) == 0)
 			volumes[i]->SetName(newName);
 	}
+
+	SaveProject();
 }
 
 void OBSBasic::SelectSceneItem(OBSScene scene, OBSSceneItem item, bool select)
@@ -1563,6 +1584,8 @@ void OBSBasic::ReorderSources(OBSScene scene)
 					info->idx++);
 				return true;
 			}, &info);
+
+	SaveProject();
 }
 
 /* OBS Callbacks */
@@ -2015,6 +2038,7 @@ void OBSBasic::closeEvent(QCloseEvent *event)
 	obs_remove_draw_callback(OBSBasic::RenderMain, this);
 
 	SaveProject();
+	disableSaving++;
 
 	/* Clear the list boxes in ::closeEvent to ensure that we can process
 	 * any ->deleteLater events in this window created by Qt in relation to
