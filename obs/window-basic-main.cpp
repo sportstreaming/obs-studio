@@ -791,10 +791,6 @@ void OBSBasic::OBSInit()
 	TimedCheckForUpdates();
 	loaded = true;
 
-	saveTimer = new QTimer(this);
-	connect(saveTimer, SIGNAL(timeout()), this, SLOT(SaveProject()));
-	saveTimer->start(20000);
-
 	bool previewEnabled = config_get_bool(App()->GlobalConfig(),
 			"BasicWindow", "PreviewEnabled");
 	if (!previewEnabled)
@@ -2018,9 +2014,6 @@ void OBSBasic::closeEvent(QCloseEvent *event)
 	// the destructor gets called
 	obs_remove_draw_callback(OBSBasic::RenderMain, this);
 
-	/* Delete the save timer so it doesn't trigger after this point while
-	 * the program data is being freed */
-	delete saveTimer;
 	SaveProject();
 
 	/* Clear the list boxes in ::closeEvent to ensure that we can process
