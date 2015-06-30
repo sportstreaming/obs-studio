@@ -219,6 +219,10 @@ void OBSBasic::AddSceneCollection(bool create_new)
 	}
 	SaveProject();
 	RefreshSceneCollections();
+
+	blog(LOG_INFO, "------------------------------------------------");
+	blog(LOG_INFO, "Added profile '%s' (%s)", name.c_str(),
+			create_new ? "clean" : "duplicate");
 }
 
 void OBSBasic::RefreshSceneCollections()
@@ -299,6 +303,9 @@ void OBSBasic::on_actionRenameSceneCollection_triggered()
 	old_file += ".json";
 	os_unlink(old_file.c_str());
 
+	blog(LOG_INFO, "------------------------------------------------");
+	blog(LOG_INFO, "Renamed profile to '%s'", name.c_str());
+
 	RefreshSceneCollections();
 }
 
@@ -309,12 +316,12 @@ void OBSBasic::on_actionRemoveSceneCollection_triggered()
 
 	std::string old_file = config_get_string(App()->GlobalConfig(),
 			"Basic", "SceneCollectionFile");
-	const char *old_name = config_get_string(App()->GlobalConfig(),
+	std::string old_name = config_get_string(App()->GlobalConfig(),
 			"Basic", "SceneCollection");
 
 	auto cb = [&](const char *name, const char *file_path)
 	{
-		if (strcmp(old_name, name) != 0) {
+		if (strcmp(old_name.c_str(), name) != 0) {
 			new_name = name;
 			new_path = file_path;
 			return false;
@@ -333,7 +340,7 @@ void OBSBasic::on_actionRemoveSceneCollection_triggered()
 	}
 
 	QString text = QTStr("ConfirmRemove.Text");
-	text.replace("$1", QT_UTF8(old_name));
+	text.replace("$1", QT_UTF8(old_name.c_str()));
 
 	QMessageBox::StandardButton button = QMessageBox::question(this,
 			QTStr("ConfirmRemove.Title"), text);
@@ -350,6 +357,9 @@ void OBSBasic::on_actionRemoveSceneCollection_triggered()
 	old_file.insert(0, path);
 	old_file += ".json";
 	os_unlink(old_file.c_str());
+
+	blog(LOG_INFO, "------------------------------------------------");
+	blog(LOG_INFO, "Removed profile '%s'", old_name.c_str());
 
 	ClearSceneData();
 	Load(new_path.c_str());
@@ -376,6 +386,10 @@ void OBSBasic::ChangeSceneCollection()
 	}
 
 	SaveProject();
+
+	blog(LOG_INFO, "------------------------------------------------");
+	blog(LOG_INFO, "Switched to scene collection '%s'",
+			QT_TO_UTF8(action->text()));
 
 	ClearSceneData();
 	Load(file_name.c_str());
