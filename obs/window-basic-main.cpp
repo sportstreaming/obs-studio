@@ -2804,9 +2804,17 @@ void OBSBasic::OpenSceneFilters()
 	CreateFiltersWindow(source);
 }
 
+#define OUTPUT_START \
+	"==== Output Start =================================================="
+#define OUTPUT_STOP \
+	"==== Output Stop ==================================================="
+
 void OBSBasic::StartStreaming()
 {
 	SaveProject();
+
+	if (!outputHandler->Active())
+		blog(LOG_INFO, OUTPUT_START);
 
 	if (outputHandler->StreamingActive())
 		return;
@@ -2824,8 +2832,10 @@ void OBSBasic::StopStreaming()
 	if (outputHandler->StreamingActive())
 		outputHandler->StopStreaming();
 
-	if (!outputHandler->Active())
+	if (!outputHandler->Active()) {
 		ui->profileMenu->setEnabled(true);
+		blog(LOG_INFO, OUTPUT_STOP);
+	}
 }
 
 void OBSBasic::StreamingStart()
@@ -2869,8 +2879,10 @@ void OBSBasic::StreamingStop(int code)
 	ui->streamButton->setText(QTStr("Basic.Main.StartStreaming"));
 	ui->streamButton->setEnabled(true);
 
-	if (!outputHandler->Active())
+	if (!outputHandler->Active()) {
 		ui->profileMenu->setEnabled(true);
+		blog(LOG_INFO, OUTPUT_STOP);
+	}
 
 	if (code != OBS_OUTPUT_SUCCESS)
 		QMessageBox::information(this,
@@ -2881,6 +2893,9 @@ void OBSBasic::StreamingStop(int code)
 void OBSBasic::StartRecording()
 {
 	SaveProject();
+
+	if (!outputHandler->Active())
+		blog(LOG_INFO, OUTPUT_START);
 
 	if (!outputHandler->RecordingActive())
 		outputHandler->StartRecording();
@@ -2893,8 +2908,10 @@ void OBSBasic::StopRecording()
 	if (outputHandler->RecordingActive())
 		outputHandler->StopRecording();
 
-	if (!outputHandler->Active())
+	if (!outputHandler->Active()) {
 		ui->profileMenu->setEnabled(true);
+		blog(LOG_INFO, OUTPUT_STOP);
+	}
 }
 
 void OBSBasic::RecordingStart()
@@ -2914,8 +2931,10 @@ void OBSBasic::RecordingStop(int code)
 				QTStr("Output.RecordFail.Title"),
 				QTStr("Output.RecordFail.Unsupported"));
 
-	if (!outputHandler->Active())
+	if (!outputHandler->Active()) {
 		ui->profileMenu->setEnabled(true);
+		blog(LOG_INFO, OUTPUT_STOP);
+	}
 }
 
 void OBSBasic::on_streamButton_clicked()
