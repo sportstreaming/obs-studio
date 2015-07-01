@@ -65,6 +65,8 @@ void OBSBasic::ClearSceneData()
 
 	obs_enum_sources(cb, nullptr);
 
+	sourceSceneRefs.clear();
+
 	disableSaving--;
 }
 

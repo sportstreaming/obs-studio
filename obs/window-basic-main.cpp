@@ -351,6 +351,8 @@ void OBSBasic::CreateDefaultScene()
 {
 	disableSaving++;
 
+	ClearSceneData();
+
 	bool hasDesktopAudio = HasAudioDevices(App()->OutputAudioSource());
 	bool hasInputAudio   = HasAudioDevices(App()->InputAudioSource());
 
@@ -427,6 +429,8 @@ void OBSBasic::Load(const char *file)
 	}
 
 	disableSaving++;
+
+	ClearSceneData();
 
 	obs_data_t       *data       = obs_data_create_from_json(jsonData);
 	obs_data_array_t *sceneOrder = obs_data_get_array(data, "scene_order");
