@@ -216,7 +216,6 @@ void OBSBasic::AddSceneCollection(bool create_new)
 	config_set_string(App()->GlobalConfig(), "Basic", "SceneCollectionFile",
 			file.c_str());
 	if (create_new) {
-		ClearSceneData();
 		CreateDefaultScene();
 	}
 	SaveProject();
@@ -363,7 +362,6 @@ void OBSBasic::on_actionRemoveSceneCollection_triggered()
 	blog(LOG_INFO, "------------------------------------------------");
 	blog(LOG_INFO, "Removed profile '%s'", old_name.c_str());
 
-	ClearSceneData();
 	Load(new_path.c_str());
 	RefreshSceneCollections();
 }
@@ -393,7 +391,6 @@ void OBSBasic::ChangeSceneCollection()
 	blog(LOG_INFO, "Switched to scene collection '%s'",
 			QT_TO_UTF8(action->text()));
 
-	ClearSceneData();
 	Load(file_name.c_str());
 	RefreshSceneCollections();
 }
