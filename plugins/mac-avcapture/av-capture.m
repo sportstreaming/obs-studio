@@ -10,6 +10,243 @@
 
 #import "AVCaptureInputPort+PreMavericksCompat.h"
 
+#include <cv.h>
+#include <highgui.h>
+#include "alphakey.h"
+
+/*
+
+bool YUV420_To_BGR24(unsigned char *puc_y, unsigned char *puc_u, unsigned char *puc_v, unsigned char *puc_rgb, int width_y, int height_y)
+{
+    if (!puc_y || !puc_u || !puc_v || !puc_rgb)
+    {
+        return false;
+    }
+
+    //初始化变量
+    int baseSize = width_y * height_y;
+    int rgbSize = baseSize * 3;
+
+    BYTE* rgbData  = new BYTE[rgbSize];
+    memset(rgbData, 0, rgbSize);
+
+    int temp = 0;
+
+    BYTE* rData = rgbData;                  //r分量地址
+    BYTE* gData = rgbData + baseSize;       //g分量地址
+    BYTE* bData = gData   + baseSize;       //b分量地址
+
+    int uvIndex =0, yIndex =0;
+
+    //YUV->RGB 的转换矩阵
+    //double  Yuv2Rgb[3][3] = {1, 0, 1.4022,
+    //    1, -0.3456, -0.7145,
+    //    1, 1.771,   0};
+
+    for(int y=0; y < height_y; y++)
+    {
+        for(int x=0; x < width_y; x++)
+        {
+            uvIndex        = (y>>1) * (width_y>>1) + (x>>1);
+            yIndex         = y * width_y + x;
+
+            temp          = (int)(puc_y[yIndex] + (puc_v[uvIndex] - 128) * 1.4022);
+            rData[yIndex] = temp<0 ? 0 : (temp > 255 ? 255 : temp);
+
+            temp          = (int)(puc_y[yIndex] + (puc_u[uvIndex] - 128) * (-0.3456) +
+                                  (puc_v[uvIndex] - 128) * (-0.7145));
+            gData[yIndex] = temp < 0 ? 0 : (temp > 255 ? 255 : temp);
+
+            temp          = (int)(puc_y[yIndex] + (puc_u[uvIndex] - 128) * 1.771);
+            bData[yIndex] = temp < 0 ? 0 : (temp > 255 ? 255 : temp);
+        }
+    }
+
+    int widthStep = width_y*3;
+    for (int y = 0; y < height_y; y++)
+    {
+        for (int x = 0; x < width_y; x++)
+        {
+            puc_rgb[y * widthStep + x * 3 + 2] = rData[y * width_y + x];   //R
+            puc_rgb[y * widthStep + x * 3 + 1] = gData[y * width_y + x];   //G
+            puc_rgb[y * widthStep + x * 3 + 0] = bData[y * width_y + x];   //B
+        }
+    }
+    
+    if (!puc_rgb)
+    {
+        return false;
+    }
+    
+    delete [] rgbData;
+    return true;
+}
+
+IplImage* YUV420_To_IplImage(unsigned char* pYUV420, int width, int height)
+{
+    if (!pYUV420)
+    {
+        return NULL;
+    }
+
+    int baseSize = width*height;
+    int imgSize = baseSize*3;
+
+    BYTE* pRGB24  = new BYTE[imgSize];
+    memset(pRGB24,  0, imgSize);
+
+    int temp = 0;
+
+    BYTE* yData = pYUV420;                  //y
+    BYTE* uData = pYUV420 + baseSize;       //u
+    BYTE* vData = uData  + (baseSize>>2);   //v
+
+    if(YUV420_To_BGR24(yData, uData, vData, pRGB24, width, height) == false || !pRGB24)
+    {
+        return NULL;
+    }
+
+    IplImage *image = cvCreateImage(cvSize(width, height), 8,3);
+    memcpy(image->imageData, pRGB24, imgSize);
+
+    if (!image)
+    {
+        return NULL;
+    }
+
+    delete [] pRGB24;
+    return image;
+}
+ */
+
+void IplImage_Opencv_To_NV12(IplImage * rgbimg, unsigned char* pNV12)
+{
+    int width = rgbimg->width;
+    int height = rgbimg->height;
+
+    IplImage * yuvimage = cvCreateImage(cvSize(width, height), IPL_DEPTH_8U, 3);
+    cvCvtColor(rgbimg, yuvimage,CV_RGB2YCrCb);
+
+    unsigned char * ybuf = pNV12;
+    unsigned char * uvbuf = pNV12 + width * height;
+    unsigned char * yuvbuf = yuvimage->imageData;
+
+    for (int i=0; i<height; ++i) {
+        for ( int j=0; j<width; ++j ) {
+            *(ybuf++) = *(yuvbuf++);
+            if ( i%2 == 0 && j%2 == 0 ) {
+                *(uvbuf++) = *(yuvbuf++);//u
+                *(uvbuf++) = *(yuvbuf++);//v
+            } else {
+                yuvbuf += 2;
+            }
+        }
+    }
+
+    cvReleaseImage(&yuvimage);
+}
+
+IplImage* YUV420_To_IplImage_Opencv(unsigned char* pYUV420, int width, int height)
+{
+    if (!pYUV420) {
+        return NULL;
+    }
+
+    IplImage *yuvimage,*rgbimg,*yimg,*uimg,*vimg,*uuimg,*vvimg;
+
+    int nWidth = width;
+    int nHeight = height;
+    rgbimg = cvCreateImage(cvSize(nWidth, nHeight), IPL_DEPTH_8U, 3);
+    yuvimage = cvCreateImage(cvSize(nWidth, nHeight), IPL_DEPTH_8U, 3);
+
+    yimg = cvCreateImageHeader(cvSize(nWidth, nHeight), IPL_DEPTH_8U, 1);
+    uimg = cvCreateImageHeader(cvSize(nWidth/2, nHeight/2), IPL_DEPTH_8U, 1);
+    vimg = cvCreateImageHeader(cvSize(nWidth/2, nHeight/2), IPL_DEPTH_8U, 1);
+
+    uuimg = cvCreateImage(cvSize(nWidth, nHeight), IPL_DEPTH_8U, 1);
+    vvimg = cvCreateImage(cvSize(nWidth, nHeight), IPL_DEPTH_8U, 1);
+
+    cvSetData(yimg, pYUV420, nWidth);
+    cvSetData(uimg, pYUV420+nWidth*nHeight, nWidth/2);
+    cvSetData(vimg, pYUV420+nWidth*nHeight*5/4, nWidth/2);
+    cvResize(uimg,uuimg,CV_INTER_LINEAR);
+    cvResize(vimg,vvimg,CV_INTER_LINEAR);
+
+    cvMerge(yimg,uuimg,vvimg,NULL,yuvimage);
+    cvCvtColor(yuvimage,rgbimg,CV_YCrCb2RGB);
+
+    cvReleaseImage(&uuimg);
+    cvReleaseImage(&vvimg);
+    cvReleaseImageHeader(&yimg);
+    cvReleaseImageHeader(&uimg);
+    cvReleaseImageHeader(&vimg);
+
+    cvReleaseImage(&yuvimage);
+
+    if (!rgbimg)
+    {
+        return NULL;
+    }
+    
+    return rgbimg;
+}
+
+IplImage* NV12_To_IplImage_Opencv(unsigned char* pNV12, int width, int height)
+{
+    if (!pNV12) {
+        return NULL;
+    }
+
+    IplImage *yuvimage,*rgbimg,*yimg,*uimg,*vimg,*uuimg,*vvimg;
+
+    int nWidth = width;
+    int nHeight = height;
+    rgbimg = cvCreateImage(cvSize(nWidth, nHeight), IPL_DEPTH_8U, 3);
+    yuvimage = cvCreateImage(cvSize(nWidth, nHeight), IPL_DEPTH_8U, 3);
+
+    yimg = cvCreateImageHeader(cvSize(nWidth, nHeight), IPL_DEPTH_8U, 1);
+    uimg = cvCreateImage(cvSize(nWidth/2, nHeight/2), IPL_DEPTH_8U, 1);
+    vimg = cvCreateImage(cvSize(nWidth/2, nHeight/2), IPL_DEPTH_8U, 1);
+
+    uuimg = cvCreateImage(cvSize(nWidth, nHeight), IPL_DEPTH_8U, 1);
+    vvimg = cvCreateImage(cvSize(nWidth, nHeight), IPL_DEPTH_8U, 1);
+
+    cvSetData(yimg, pNV12, nWidth);
+//    cvSetData(uimg, pNV12+nWidth*nHeight, nWidth/2);
+//    cvSetData(vimg, pNV12+nWidth*nHeight*5/4, nWidth/2);
+//    cvResize(uimg,uuimg,CV_INTER_LINEAR);
+//    cvResize(vimg,vvimg,CV_INTER_LINEAR);
+
+    char* ubuf = uimg->imageData;
+    char* vbuf = vimg->imageData;
+    unsigned char* uvbuf = pNV12 + width * height;
+    for (int i=0; i<height*width/2; i+=2) {
+        *(ubuf++) = *(uvbuf++);
+        *(vbuf++) = *(uvbuf++);
+    }
+    cvResize(uimg,uuimg,CV_INTER_LINEAR);
+    cvResize(vimg,vvimg,CV_INTER_LINEAR);
+
+    cvMerge(yimg,uuimg,vvimg,NULL,yuvimage);
+    cvCvtColor(yuvimage,rgbimg,CV_YCrCb2RGB);
+
+    cvReleaseImage(&uuimg);
+    cvReleaseImage(&vvimg);
+    cvReleaseImageHeader(&yimg);
+    cvReleaseImageHeader(&uimg);
+    cvReleaseImageHeader(&vimg);
+
+    cvReleaseImage(&yuvimage);
+
+    if (!rgbimg)
+    {
+        return NULL;
+    }
+    
+    return rgbimg;
+}
+
+
 #define TEXT_AVCAPTURE  obs_module_text("AVCapture")
 #define TEXT_DEVICE     obs_module_text("Device")
 #define TEXT_USE_PRESET obs_module_text("UsePreset")
@@ -83,9 +320,9 @@ static inline enum video_format format_from_subtype(FourCharCode subtype)
 		return VIDEO_FORMAT_UYVY;
 	case kCVPixelFormatType_422YpCbCr8_yuvs:
 		return VIDEO_FORMAT_YUY2;
-	/*case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
+	case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
 	case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
-		return VIDEO_FORMAT_NV12;*/
+		return VIDEO_FORMAT_NV12;
 	/*case kCVPixelFormatType_32ARGB:
 		return VIDEO_FORMAT_ARGB;*/
 	case kCVPixelFormatType_32BGRA:
@@ -236,6 +473,20 @@ static inline bool update_frame(struct av_capture *capture,
 	if (!update_frame(capture, frame, sampleBuffer))
 		return;
 
+    IplImage* srcframe = NV12_To_IplImage_Opencv(frame->data[0], frame->width, frame->height);
+//    IplImage* gray = cvCreateImage(cvGetSize(srcframe),IPL_DEPTH_8U,1);
+//    cvCvtColor(srcframe, gray, CV_RGB2GRAY);
+//    cvShowImage("canny", gray);
+
+//    cvFlip(srcframe, NULL, 0);
+//    cvShowImage("flip", srcframe);
+//
+//    IplImage_Opencv_To_NV12(srcframe, frame->data[0]);
+//    cvReleaseImage(&srcframe);
+
+
+    //yuvalphakey(frame->data[0], frame->width, frame->height);
+
 	obs_source_output_video(capture->source, frame);
 
 	CVImageBufferRef img = CMSampleBufferGetImageBuffer(sampleBuffer);
@@ -374,7 +625,16 @@ static bool init_format(struct av_capture *capture)
 		return false;
 	}
 
-	capture->out.videoSettings = nil;
+//	capture->out.videoSettings = nil;
+
+    NSDictionary *pixelBufferOptions = [NSDictionary dictionaryWithObjectsAndKeys:
+                                        //[NSNumber numberWithUnsignedInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange],
+                                        [NSNumber numberWithUnsignedInt:kCVPixelFormatType_422YpCbCr8_yuvs],
+                                        (id)kCVPixelBufferPixelFormatTypeKey,
+                                        nil];
+    [capture->out setVideoSettings:pixelBufferOptions];
+
+
 	FourCharCode subtype = uint_from_dict(capture->out.videoSettings,
 					kCVPixelBufferPixelFormatTypeKey);
 	if (format_from_subtype(subtype) != VIDEO_FORMAT_NONE) {
