@@ -56,6 +56,7 @@ struct rtmp_stream {
 
 	struct dstr      path, key;
 	struct dstr      username, password;
+	struct dstr      encoder_name;
 
 	/* frame drop variables */
 	int64_t          drop_threshold_usec;
@@ -70,8 +71,9 @@ struct rtmp_stream {
 	RTMP             rtmp;
 };
 
-static const char *rtmp_stream_getname(void)
+static const char *rtmp_stream_getname(void *unused)
 {
+	UNUSED_PARAMETER(unused);
 	return obs_module_text("RTMPStream");
 }
 
@@ -98,7 +100,7 @@ static void rtmp_stream_destroy(void *data)
 {
 	struct rtmp_stream *stream = data;
 
-	if (stream->active)
+	if (stream->connecting || stream->active)
 		rtmp_stream_stop(data);
 
 	if (stream) {
@@ -107,6 +109,7 @@ static void rtmp_stream_destroy(void *data)
 		dstr_free(&stream->key);
 		dstr_free(&stream->username);
 		dstr_free(&stream->password);
+		dstr_free(&stream->encoder_name);
 		os_event_destroy(stream->stop_event);
 		os_sem_destroy(stream->send_sem);
 		pthread_mutex_destroy(&stream->packets_mutex);
@@ -149,9 +152,9 @@ static void rtmp_stream_stop(void *data)
 		pthread_join(stream->connect_thread, &ret);
 
 	if (stream->active) {
-		obs_output_end_data_capture(stream->output);
 		os_sem_post(stream->send_sem);
 		pthread_join(stream->send_thread, &ret);
+		obs_output_end_data_capture(stream->output);
 		RTMP_Close(&stream->rtmp);
 	}
 
@@ -394,16 +397,29 @@ static int try_connect(struct rtmp_stream *stream)
 
 	info("Connecting to RTMP URL %s...", stream->path.array);
 
+	memset(&stream->rtmp.Link, 0, sizeof(stream->rtmp.Link));
 	if (!RTMP_SetupURL(&stream->rtmp, stream->path.array))
 		return OBS_OUTPUT_BAD_PATH;
 
 	RTMP_EnableWrite(&stream->rtmp);
 
+	dstr_copy(&stream->encoder_name, "FMLE/3.0 (compatible; obs-studio/");
+
+#ifdef HAVE_OBSCONFIG_H
+	dstr_cat(&stream->encoder_name, OBS_VERSION);
+#else
+	dstr_catf(&stream->encoder_name, "%d.%d.%d",
+			LIBOBS_API_MAJOR_VER,
+			LIBOBS_API_MINOR_VER,
+			LIBOBS_API_PATCH_VER);
+#endif
+
+	dstr_cat(&stream->encoder_name, "; FMSc/1.0)");
+
 	set_rtmp_dstr(&stream->rtmp.Link.pubUser,   &stream->username);
 	set_rtmp_dstr(&stream->rtmp.Link.pubPasswd, &stream->password);
+	set_rtmp_dstr(&stream->rtmp.Link.flashVer,  &stream->encoder_name);
 	stream->rtmp.Link.swfUrl = stream->rtmp.Link.tcUrl;
-	set_rtmp_str(&stream->rtmp.Link.flashVer,
-			"FMLE/3.0 (compatible; FMSc/1.0)");
 
 	RTMP_AddStream(&stream->rtmp, stream->key.array);
 

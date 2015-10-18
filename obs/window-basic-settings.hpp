@@ -31,6 +31,7 @@ class OBSBasic;
 class QAbstractButton;
 class QComboBox;
 class QCheckBox;
+class QLabel;
 class OBSPropertiesView;
 class OBSHotkeyWidget;
 
@@ -96,11 +97,16 @@ private:
 	bool loading = true;
 	std::string savedTheme;
 
+	int lastSimpleRecQualityIdx = 0;
+
 	OBSFFFormatDesc formats;
 
 	OBSPropertiesView *streamProperties = nullptr;
 	OBSPropertiesView *streamEncoderProps = nullptr;
 	OBSPropertiesView *recordEncoderProps = nullptr;
+
+	QPointer<QLabel> advOutRecWarning;
+	QPointer<QLabel> simpleOutRecWarning;
 
 	using AudioSource_t =
 		std::tuple<OBSWeakSource,
@@ -198,8 +204,7 @@ private:
 		bool enableEncode = false);
 
 	/* audio */
-	void LoadListValues(QComboBox *widget, obs_property_t *prop,
-		const char *configName);
+	void LoadListValues(QComboBox *widget, obs_property_t *prop, int index);
 	void LoadAudioDevices();
 	void LoadAudioSources();
 
@@ -220,11 +225,13 @@ private:
 	void SaveAdvancedSettings();
 	void SaveSettings();
 
+	void UpdateSimpleOutStreamDelayEstimate();
+	void UpdateAdvOutStreamDelayEstimate();
+
+	void FillSimpleRecordingValues();
+
 private slots:
 	void on_theme_activated(int idx);
-
-	void on_simpleOutUseBufsize_toggled(bool checked);
-	void on_simpleOutputVBitrate_valueChanged(int val);
 
 	void on_listWidget_itemSelectionChanged();
 	void on_buttonBox_clicked(QAbstractButton *button);
@@ -256,6 +263,14 @@ private slots:
 	void ReloadHotkeys(obs_hotkey_id ignoreKey=OBS_INVALID_HOTKEY_ID);
 	void AdvancedChanged();
 	void AdvancedChangedRestart();
+
+	void UpdateStreamDelayEstimate();
+
+	void AdvOutRecCheckWarnings();
+
+	void SimpleRecordingQualityChanged();
+	void SimpleRecordingEncoderChanged();
+	void SimpleRecordingQualityLosslessWarning(int idx);
 
 protected:
 	virtual void closeEvent(QCloseEvent *event);

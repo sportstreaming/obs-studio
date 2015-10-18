@@ -20,7 +20,9 @@
 #include <QApplication>
 #include <QTranslator>
 #include <QPointer>
+#include <obs.hpp>
 #include <util/lexer.h>
+#include <util/profiler.h>
 #include <util/util.hpp>
 #include <string>
 #include <memory>
@@ -59,7 +61,9 @@ private:
 	std::string		       theme;
 	ConfigFile                     globalConfig;
 	TextLookup                     textLookup;
+	OBSContext                     obsContext;
 	QPointer<OBSMainWindow>        mainWindow;
+	profiler_name_store_t          *profilerNameStore = nullptr;
 
 	bool InitGlobalConfig();
 	bool InitGlobalConfigDefaults();
@@ -67,7 +71,7 @@ private:
 	bool InitTheme();
 
 public:
-	OBSApp(int &argc, char **argv);
+	OBSApp(int &argc, char **argv, profiler_name_store_t *store);
 
 	void AppInit();
 	bool OBSInit();
@@ -91,6 +95,11 @@ public:
 		return textLookup.GetString(lookupVal);
 	}
 
+	profiler_name_store_t *GetProfilerNameStore() const
+	{
+		return profilerNameStore;
+	}
+
 	const char *GetLastLog() const;
 	const char *GetCurrentLog() const;
 
@@ -112,3 +121,13 @@ inline config_t *GetGlobalConfig() {return App()->GlobalConfig();}
 std::vector<std::pair<std::string, std::string>> GetLocaleNames();
 inline const char *Str(const char *lookup) {return App()->GetString(lookup);}
 #define QTStr(lookupVal) QString::fromUtf8(Str(lookupVal))
+
+bool GetFileSafeName(const char *name, std::string &file);
+bool GetClosestUnusedFileName(std::string &path, const char *extension);
+
+static inline int GetProfilePath(char *path, size_t size, const char *file)
+{
+	OBSMainWindow *window = reinterpret_cast<OBSMainWindow*>(
+			App()->GetMainWindow());
+	return window->GetProfilePath(path, size, file);
+}

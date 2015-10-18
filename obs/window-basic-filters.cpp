@@ -16,10 +16,12 @@
 ******************************************************************************/
 
 #include "window-namedialog.hpp"
+#include "window-basic-main.hpp"
 #include "window-basic-filters.hpp"
 #include "display-helpers.hpp"
 #include "qt-wrappers.hpp"
 #include "visibility-item-widget.hpp"
+#include "item-widget-helpers.hpp"
 #include "obs-app.hpp"
 
 #include <QMessageBox>
@@ -55,6 +57,8 @@ OBSBasicFilters::OBSBasicFilters(QWidget *parent, OBSSource source_)
 	                                "rename",
 	                                OBSBasicFilters::SourceRenamed, this)
 {
+	main = reinterpret_cast<OBSBasic*>(parent);
+
 	ui->setupUi(this);
 	UpdateFilters();
 
@@ -67,9 +71,6 @@ OBSBasicFilters::OBSBasicFilters(QWidget *parent, OBSSource source_)
 	setWindowTitle(QTStr("Basic.Filters.Title").arg(QT_UTF8(name)));
 
 	installEventFilter(CreateShortcutFilter());
-
-	connect(ui->preview, SIGNAL(DisplayResized()),
-			this, SLOT(OnPreviewResized()));
 
 	connect(ui->asyncFilters->itemDelegate(),
 			SIGNAL(closeEditor(QWidget*,
@@ -101,32 +102,25 @@ OBSBasicFilters::OBSBasicFilters(QWidget *parent, OBSSource source_)
 
 	if (audioOnly || (audio && !async))
 		ui->asyncLabel->setText(QTStr("Basic.Filters.AudioFilters"));
+
+	auto addDrawCallback = [this] ()
+	{
+		obs_display_add_draw_callback(ui->preview->GetDisplay(),
+				OBSBasicFilters::DrawPreview, this);
+	};
+
+	connect(ui->preview, &OBSQTDisplay::DisplayCreated, addDrawCallback);
 }
 
 OBSBasicFilters::~OBSBasicFilters()
 {
-	ui->asyncFilters->clear();
-	ui->effectFilters->clear();
-	QApplication::sendPostedEvents(this);
+	ClearListItems(ui->asyncFilters);
+	ClearListItems(ui->effectFilters);
 }
 
 void OBSBasicFilters::Init()
 {
-	gs_init_data init_data = {};
-
 	show();
-
-	QSize previewSize = GetPixelSize(ui->preview);
-	init_data.cx      = uint32_t(previewSize.width());
-	init_data.cy      = uint32_t(previewSize.height());
-	init_data.format  = GS_RGBA;
-	QTToGSWindow(ui->preview->winId(), init_data.window);
-
-	display = obs_display_create(&init_data);
-
-	if (display)
-		obs_display_add_draw_callback(display,
-				OBSBasicFilters::DrawPreview, this);
 }
 
 inline OBSSource OBSBasicFilters::GetFilter(int row, bool async)
@@ -195,10 +189,12 @@ void OBSBasicFilters::RemoveFilter(OBSSource filter)
 		OBSSource curFilter = v.value<OBSSource>();
 
 		if (filter == curFilter) {
-			delete item;
+			DeleteListItem(list, item);
 			break;
 		}
 	}
+
+	main->SaveProject();
 }
 
 struct FilterOrderInfo {
@@ -223,7 +219,7 @@ void OBSBasicFilters::ReorderFilter(QListWidget *list,
 			if ((int)idx != i) {
 				bool sel = (list->currentRow() == i);
 
-				listItem = list->takeItem(i);
+				listItem = TakeListItem(list, i);
 				if (listItem)  {
 					list->insertItem((int)idx, listItem);
 					SetupVisibilityItem(list,
@@ -271,8 +267,8 @@ void OBSBasicFilters::UpdateFilters()
 	if (!source)
 		return;
 
-	ui->effectFilters->clear();
-	ui->asyncFilters->clear();
+	ClearListItems(ui->effectFilters);
+	ClearListItems(ui->asyncFilters);
 
 	obs_source_enum_filters(source,
 			[] (obs_source_t*, obs_source_t *filter, void *p)
@@ -282,6 +278,8 @@ void OBSBasicFilters::UpdateFilters()
 
 				window->AddFilter(filter);
 			}, this);
+
+	main->SaveProject();
 }
 
 static bool filter_compatible(bool async, uint32_t sourceFlags,
@@ -386,35 +384,13 @@ void OBSBasicFilters::AddFilterFromAction()
 	AddNewFilter(QT_TO_UTF8(action->data().toString()));
 }
 
-void OBSBasicFilters::OnPreviewResized()
-{
-	if (resizeTimer)
-		killTimer(resizeTimer);
-	resizeTimer = startTimer(100);
-}
-
 void OBSBasicFilters::closeEvent(QCloseEvent *event)
 {
 	QDialog::closeEvent(event);
 	if (!event->isAccepted())
 		return;
 
-	// remove draw callback and release display in case our drawable
-	// surfaces go away before the destructor gets called
-	obs_display_remove_draw_callback(display,
-			OBSBasicFilters::DrawPreview, this);
-	display = nullptr;
-}
-
-void OBSBasicFilters::timerEvent(QTimerEvent *event)
-{
-	if (event->timerId() == resizeTimer) {
-		killTimer(resizeTimer);
-		resizeTimer = 0;
-
-		QSize size = GetPixelSize(ui->preview);
-		obs_display_resize(display, size.width(), size.height());
-	}
+	main->SaveProject();
 }
 
 /* OBS Signals */

@@ -112,7 +112,7 @@ const char *obs_source_get_display_name(enum obs_source_type type,
 		const char *id)
 {
 	const struct obs_source_info *info = get_source_info(type, id);
-	return (info != NULL) ? info->get_name() : NULL;
+	return (info != NULL) ? info->get_name(info->type_data) : NULL;
 }
 
 /* internal initialization */
@@ -215,7 +215,8 @@ static void obs_source_hotkey_push_to_talk(void *data,
 
 static void obs_source_init_audio_hotkeys(struct obs_source *source)
 {
-	if (!(source->info.output_flags & OBS_SOURCE_AUDIO)) {
+	if (!(source->info.output_flags & OBS_SOURCE_AUDIO) ||
+	    source->info.type != OBS_SOURCE_TYPE_INPUT) {
 		source->mute_unmute_key  = OBS_INVALID_HOTKEY_ID;
 		source->push_to_talk_key = OBS_INVALID_HOTKEY_ID;
 		return;
@@ -859,9 +860,7 @@ static inline void handle_ts_jump(obs_source_t *source, uint64_t expected,
 	                "expected value %"PRIu64", input value %"PRIu64,
 	                source->context.name, diff, expected, ts);
 
-	/* if has video, ignore audio data until reset */
-	if (!(source->info.output_flags & OBS_SOURCE_ASYNC))
-		reset_audio_timing(source, ts, os_time);
+	reset_audio_timing(source, ts, os_time);
 }
 
 static void source_signal_audio_data(obs_source_t *source,
@@ -1398,6 +1397,10 @@ void obs_source_video_render(obs_source_t *source)
 {
 	if (!source) return;
 
+	if (source->info.type != OBS_SOURCE_TYPE_FILTER &&
+	    (source->info.output_flags & OBS_SOURCE_VIDEO) == 0)
+		return;
+
 	if (!source->context.data || !source->enabled) {
 		if (source->filter_parent)
 			obs_source_skip_video_filter(source);
@@ -1529,6 +1532,7 @@ void obs_source_filter_add(obs_source_t *source, obs_source_t *filter)
 	if (da_find(source->filters, &filter, 0) != DARRAY_INVALID) {
 		blog(LOG_WARNING, "Tried to add a filter that was already "
 		                  "present on the source");
+		pthread_mutex_unlock(&source->filter_mutex);
 		return;
 	}
 
@@ -1562,8 +1566,10 @@ static bool obs_source_filter_remove_refless(obs_source_t *source,
 	pthread_mutex_lock(&source->filter_mutex);
 
 	idx = da_find(source->filters, &filter, 0);
-	if (idx == DARRAY_INVALID)
+	if (idx == DARRAY_INVALID) {
+		pthread_mutex_unlock(&source->filter_mutex);
 		return false;
+	}
 
 	if (idx > 0) {
 		obs_source_t *prev = source->filters.array[idx-1];
@@ -3066,4 +3072,10 @@ void obs_source_set_push_to_talk_delay(obs_source_t *source, uint64_t delay)
 
 	source_signal_push_to_delay(source, "push_to_talk_delay", delay);
 	pthread_mutex_unlock(&source->audio_mutex);
+}
+
+void *obs_source_get_type_data(obs_source_t *source)
+{
+	return obs_source_valid(source, "obs_source_get_type_data")
+		? source->info.type_data : NULL;
 }

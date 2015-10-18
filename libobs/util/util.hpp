@@ -72,6 +72,13 @@ public:
 		return config != NULL;
 	}
 
+	inline void Swap(ConfigFile &other)
+	{
+		config_t *newConfig = other.config;
+		other.config = config;
+		config = newConfig;
+	}
+
 	inline int Open(const char *file, config_open_type openType)
 	{
 		Close();
@@ -81,6 +88,12 @@ public:
 	inline int Save()
 	{
 		return config_save(config);
+	}
+
+	inline int SaveSafe(const char *temp_ext,
+			const char *backup_ext = nullptr)
+	{
+		return config_save_safe(config, temp_ext, backup_ext);
 	}
 
 	inline void Close()

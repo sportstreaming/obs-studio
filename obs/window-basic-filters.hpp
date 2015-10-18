@@ -36,11 +36,9 @@ private:
 	OBSBasic *main;
 
 	std::unique_ptr<Ui::OBSBasicFilters> ui;
-	int resizeTimer = 0;
 	OBSSource source;
 	OBSPropertiesView *view = nullptr;
 
-	OBSDisplay display;
 	OBSSignal addSignal;
 	OBSSignal removeSignal;
 	OBSSignal reorderSignal;
@@ -79,8 +77,6 @@ private slots:
 
 	void AddFilterFromAction();
 
-	void OnPreviewResized();
-
 	void on_addAsyncFilter_clicked();
 	void on_removeAsyncFilter_clicked();
 	void on_moveAsyncFilterUp_clicked();
@@ -110,5 +106,4 @@ public:
 
 protected:
 	virtual void closeEvent(QCloseEvent *event) override;
-	virtual void timerEvent(QTimerEvent *event) override;
 };

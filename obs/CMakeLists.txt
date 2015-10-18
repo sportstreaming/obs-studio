@@ -10,7 +10,11 @@ else()
 	set(FIND_MODE QUIET)
 endif()
 
-if(DEFINED ENV{QTDIR${_lib_suffix}})
+if(DEFINED QTDIR${_lib_suffix})
+	list(APPEND CMAKE_PREFIX_PATH "${QTDIR${_lib_suffix}}")
+elseif(DEFINED QTDIR)
+	list(APPEND CMAKE_PREFIX_PATH "${QTDIR}")
+elseif(DEFINED ENV{QTDIR${_lib_suffix}})
 	list(APPEND CMAKE_PREFIX_PATH "$ENV{QTDIR${_lib_suffix}}")
 elseif(DEFINED ENV{QTDIR})
 	list(APPEND CMAKE_PREFIX_PATH "$ENV{QTDIR}")
@@ -100,6 +104,8 @@ set(obs_SOURCES
 	window-basic-properties.cpp
 	window-basic-main-outputs.cpp
 	window-basic-source-select.cpp
+	window-basic-main-scene-collections.cpp
+	window-basic-main-profiles.cpp
 	window-license-agreement.cpp
 	window-basic-status-bar.cpp
 	window-basic-adv-audio.cpp
@@ -114,15 +120,18 @@ set(obs_SOURCES
 	double-slider.cpp
 	volume-control.cpp
 	adv-audio-control.cpp
+	item-widget-helpers.cpp
 	visibility-checkbox.cpp
 	vertical-scroll-area.cpp
 	visibility-item-widget.cpp
 	slider-absoluteset-style.cpp
 	source-list-widget.cpp
+	qt-display.cpp
 	crash-report.cpp
 	hotkey-edit.cpp
 	source-label.cpp
 	remote-text.cpp
+	audio-encoders.cpp
 	qt-wrappers.cpp)
 
 set(obs_HEADERS
@@ -152,6 +161,7 @@ set(obs_HEADERS
 	mute-checkbox.hpp
 	volume-control.hpp
 	adv-audio-control.hpp
+	item-widget-helpers.hpp
 	visibility-checkbox.hpp
 	vertical-scroll-area.hpp
 	visibility-item-widget.hpp
@@ -162,6 +172,7 @@ set(obs_HEADERS
 	hotkey-edit.hpp
 	source-label.hpp
 	remote-text.hpp
+	audio-encoders.hpp
 	qt-wrappers.hpp)
 
 set(obs_UI
@@ -174,7 +185,6 @@ set(obs_UI
 	forms/OBSBasicSettings.ui
 	forms/OBSBasicSourceSelect.ui
 	forms/OBSBasicInteraction.ui
-	forms/OBSBasicProperties.ui
 	forms/OBSRemux.ui)
 
 set(obs_QRC

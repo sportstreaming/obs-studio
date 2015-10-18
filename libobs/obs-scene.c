@@ -42,9 +42,10 @@ static inline void signal_item_remove(struct obs_scene_item *item)
 	calldata_free(&params);
 }
 
-static const char *scene_getname(void)
+static const char *scene_getname(void *unused)
 {
 	/* TODO: locale */
+	UNUSED_PARAMETER(unused);
 	return "Scene";
 }
 
@@ -476,6 +477,42 @@ obs_scene_t *obs_scene_create(const char *name)
 		obs_source_create(OBS_SOURCE_TYPE_INPUT, "scene", name, NULL,
 				NULL);
 	return source->context.data;
+}
+
+obs_scene_t *obs_scene_duplicate(obs_scene_t *scene, const char *name)
+{
+	struct obs_scene *new_scene = obs_scene_create(name);
+	struct obs_scene_item *item = scene->first_item;
+
+	pthread_mutex_lock(&scene->mutex);
+
+	while (item) {
+		struct obs_source *source = item->source;
+
+		if (source) {
+			struct obs_scene_item *new_item =
+				obs_scene_add(new_scene, source);
+
+			new_item->visible = item->visible;
+			new_item->selected = item->selected;
+			new_item->pos = item->pos;
+			new_item->scale = item->scale;
+			new_item->align = item->align;
+			new_item->last_width = item->last_width;
+			new_item->last_height = item->last_height;
+			new_item->box_transform = item->box_transform;
+			new_item->draw_transform = item->draw_transform;
+			new_item->bounds_type = item->bounds_type;
+			new_item->bounds_align = item->bounds_align;
+			new_item->bounds = item->bounds;
+		}
+
+		item = item->next;
+	}
+
+	pthread_mutex_unlock(&scene->mutex);
+
+	return new_scene;
 }
 
 void obs_scene_addref(obs_scene_t *scene)
@@ -1033,4 +1070,83 @@ void obs_sceneitem_set_visible(obs_sceneitem_t *item, bool visible)
 			"item_visible", &cd);
 
 	calldata_free(&cd);
+}
+
+static bool sceneitems_match(obs_scene_t *scene, obs_sceneitem_t * const *items,
+		size_t size, bool *order_matches)
+{
+	obs_sceneitem_t *item = scene->first_item;
+
+	size_t count = 0;
+	while (item) {
+		bool found = false;
+		for (size_t i = 0; i < size; i++) {
+			if (items[i] != item)
+				continue;
+
+			if (count != i)
+				*order_matches = false;
+
+			found = true;
+			break;
+		}
+
+		if (!found)
+			return false;
+
+		item = item->next;
+		count += 1;
+	}
+
+	return count == size;
+}
+
+bool obs_scene_reorder_items(obs_scene_t *scene,
+		obs_sceneitem_t * const *item_order, size_t item_order_size)
+{
+	if (!scene || !item_order_size)
+		return false;
+
+	obs_scene_addref(scene);
+	pthread_mutex_lock(&scene->mutex);
+
+	bool order_matches = true;
+	if (!sceneitems_match(scene, item_order, item_order_size,
+				&order_matches) || order_matches) {
+		pthread_mutex_unlock(&scene->mutex);
+		obs_scene_release(scene);
+		return false;
+	}
+
+	scene->first_item = item_order[0];
+
+	obs_sceneitem_t *prev = NULL;
+	for (size_t i = 0; i < item_order_size; i++) {
+		item_order[i]->prev = prev;
+		item_order[i]->next = NULL;
+
+		if (prev)
+			prev->next = item_order[i];
+
+		prev = item_order[i];
+	}
+
+	signal_reorder(scene->first_item);
+
+	pthread_mutex_unlock(&scene->mutex);
+	obs_scene_release(scene);
+	return true;
+}
+
+void obs_scene_atomic_update(obs_scene_t *scene,
+		obs_scene_atomic_update_func func, void *data)
+{
+	if (!scene)
+		return;
+
+	obs_scene_addref(scene);
+	pthread_mutex_lock(&scene->mutex);
+	func(data, scene);
+	pthread_mutex_unlock(&scene->mutex);
+	obs_scene_release(scene);
 }

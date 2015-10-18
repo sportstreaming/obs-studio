@@ -8,15 +8,29 @@
 #define LOG(level, message, ...) blog(level, "%s: " message, \
 		obs_source_get_name(this->decklink->GetSource()), ##__VA_ARGS__)
 
+static inline enum video_format ConvertPixelFormat(BMDPixelFormat format)
+{
+	switch (format) {
+	case bmdFormat8BitBGRA: return VIDEO_FORMAT_BGRX;
+
+	default:
+	case bmdFormat8BitYUV:;
+	}
+
+	return VIDEO_FORMAT_UYVY;
+}
+
 DeckLinkDeviceInstance::DeckLinkDeviceInstance(DeckLink *decklink_,
 		DeckLinkDevice *device_) :
 	currentFrame(), currentPacket(), decklink(decklink_), device(device_)
 {
-	currentFrame.format = VIDEO_FORMAT_UYVY;
-
 	currentPacket.samples_per_sec = 48000;
 	currentPacket.speakers        = SPEAKERS_STEREO;
 	currentPacket.format          = AUDIO_FORMAT_16BIT;
+}
+
+DeckLinkDeviceInstance::~DeckLinkDeviceInstance()
+{
 }
 
 void DeckLinkDeviceInstance::HandleAudioPacket(
@@ -76,11 +90,15 @@ bool DeckLinkDeviceInstance::StartCapture(DeckLinkDeviceMode *mode_)
 	if (!device->GetInput(&input))
 		return false;
 
+	pixelFormat = decklink->GetPixelFormat();
+	currentFrame.format = ConvertPixelFormat(pixelFormat);
+
 	input->SetCallback(this);
 
 	const BMDDisplayMode displayMode = mode_->GetDisplayMode();
+
 	const HRESULT videoResult = input->EnableVideoInput(displayMode,
-			bmdFormat8BitYUV, bmdVideoInputFlagDefault);
+			pixelFormat, bmdVideoInputFlagDefault);
 
 	if (videoResult != S_OK) {
 		LOG(LOG_ERROR, "Failed to enable video input");
@@ -126,14 +144,25 @@ bool DeckLinkDeviceInstance::StopCapture(void)
 	return true;
 }
 
+#define TIME_BASE 1000000000
+
 HRESULT STDMETHODCALLTYPE DeckLinkDeviceInstance::VideoInputFrameArrived(
 		IDeckLinkVideoInputFrame *videoFrame,
 		IDeckLinkAudioInputPacket *audioPacket)
 {
-	const uint64_t timestamp = os_gettime_ns();
+	BMDTimeValue videoTS = 0;
+	BMDTimeValue videoDur = 0;
+	BMDTimeValue audioTS = 0;
 
-	HandleVideoFrame(videoFrame, timestamp);
-	HandleAudioPacket(audioPacket, timestamp);
+	if (videoFrame)
+		videoFrame->GetStreamTime(&videoTS, &videoDur, TIME_BASE);
+	if (audioPacket)
+		audioPacket->GetPacketTime(&audioTS, TIME_BASE);
+
+	if (videoFrame && videoTS >= 0)
+		HandleVideoFrame(videoFrame, (uint64_t)videoTS);
+	if (audioPacket && audioTS >= 0)
+		HandleAudioPacket(audioPacket, (uint64_t)audioTS);
 
 	return S_OK;
 }

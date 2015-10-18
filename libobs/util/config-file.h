@@ -46,6 +46,8 @@ EXPORT int config_open(config_t **config, const char *file,
 		enum config_open_type open_type);
 EXPORT int config_open_string(config_t **config, const char *str);
 EXPORT int config_save(config_t *config);
+EXPORT int config_save_safe(config_t *config, const char *temp_ext,
+		const char *backup_ext);
 EXPORT void config_close(config_t *config);
 
 EXPORT size_t config_num_sections(config_t *config);
@@ -71,6 +73,9 @@ EXPORT uint64_t config_get_uint(const config_t *config, const char *section,
 EXPORT bool config_get_bool(const config_t *config, const char *section,
 		const char *name);
 EXPORT double config_get_double(const config_t *config, const char *section,
+		const char *name);
+
+EXPORT bool config_remove_value(config_t *config, const char *section,
 		const char *name);
 
 /*

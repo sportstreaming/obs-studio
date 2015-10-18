@@ -6,6 +6,7 @@
 #include <emmintrin.h>
 #include <ipc-util/pipe.h>
 #include "obfuscate.h"
+#include "inject-library.h"
 #include "graphics-hook-info.h"
 #include "window-helpers.h"
 #include "cursor-capture.h"
@@ -29,6 +30,7 @@
 #define SETTING_TRANSPARENCY     "allow_transparency"
 #define SETTING_LIMIT_FRAMERATE  "limit_framerate"
 #define SETTING_CAPTURE_OVERLAYS "capture_overlays"
+#define SETTING_ANTI_CHEAT_HOOK  "anti_cheat_hook"
 
 #define TEXT_GAME_CAPTURE        obs_module_text("GameCapture")
 #define TEXT_ANY_FULLSCREEN      obs_module_text("GameCapture.AnyFullscreen")
@@ -44,6 +46,7 @@
 #define TEXT_CAPTURE_CURSOR      obs_module_text("CaptureCursor")
 #define TEXT_LIMIT_FRAMERATE     obs_module_text("GameCapture.LimitFramerate")
 #define TEXT_CAPTURE_OVERLAYS    obs_module_text("GameCapture.CaptureOverlays")
+#define TEXT_ANTI_CHEAT_HOOK     obs_module_text("GameCapture.AntiCheatHook")
 
 #define DEFAULT_RETRY_INTERVAL 2.0f
 #define ERROR_RETRY_INTERVAL 4.0f
@@ -62,6 +65,7 @@ struct game_capture_config {
 	bool                          allow_transparency : 1;
 	bool                          limit_framerate : 1;
 	bool                          capture_overlays : 1;
+	bool                          anticheat_hook : 1;
 };
 
 struct game_capture {
@@ -249,6 +253,8 @@ static inline void get_config(struct game_capture_config *cfg,
 			SETTING_LIMIT_FRAMERATE);
 	cfg->capture_overlays = obs_data_get_bool(settings,
 			SETTING_CAPTURE_OVERLAYS);
+	cfg->anticheat_hook = obs_data_get_bool(settings,
+			SETTING_ANTI_CHEAT_HOOK);
 
 	scale_str = obs_data_get_string(settings, SETTING_SCALE_RES);
 	ret = sscanf(scale_str, "%"PRIu32"x%"PRIu32,
@@ -488,8 +494,16 @@ static inline void reset_frame_interval(struct game_capture *gc)
 	struct obs_video_info ovi;
 	uint64_t interval = 0;
 
-	if (gc->config.limit_framerate && obs_get_video_info(&ovi))
+	if (obs_get_video_info(&ovi)) {
 		interval = ovi.fps_den * 1000000000ULL / ovi.fps_num;
+
+		/* Always limit capture framerate to some extent.  If a game
+		 * running at 900 FPS is being captured without some sort of
+		 * limited capture interval, it will dramatically reduce
+		 * performance. */
+		if (!gc->config.limit_framerate)
+			interval /= 2;
+	}
 
 	gc->global_hook_info->frame_interval = interval;
 }
@@ -554,23 +568,77 @@ static inline bool init_pipe(struct game_capture *gc)
 	return true;
 }
 
+static inline int inject_library(HANDLE process, const wchar_t *dll)
+{
+	return inject_library_obf(process, dll,
+			"D|hkqkW`kl{k\\osofj", 0xa178ef3655e5ade7,
+			"[uawaRzbhh{tIdkj~~", 0x561478dbd824387c,
+			"[fr}pboIe`dlN}", 0x395bfbc9833590fd,
+			"\\`zs}gmOzhhBq", 0x12897dd89168789a,
+			"GbfkDaezbp~X", 0x76aff7238788f7db);
+}
+
+static inline bool hook_direct(struct game_capture *gc,
+		const char *hook_path_rel)
+{
+	wchar_t hook_path_abs_w[MAX_PATH];
+	wchar_t *hook_path_rel_w;
+	wchar_t *path_ret;
+	HANDLE process;
+	int ret;
+
+	os_utf8_to_wcs_ptr(hook_path_rel, 0, &hook_path_rel_w);
+	if (!hook_path_rel_w) {
+		warn("hook_direct: could not convert string");
+		return false;
+	}
+
+	path_ret = _wfullpath(hook_path_abs_w, hook_path_rel_w, MAX_PATH);
+	bfree(hook_path_rel_w);
+
+	if (path_ret == NULL) {
+		warn("hook_direct: could not make absolute path");
+		return false;
+	}
+
+	process = open_process(PROCESS_ALL_ACCESS, false, gc->process_id);
+	if (!process) {
+		warn("hook_direct: could not open process: %s (%lu)",
+				gc->config.executable, GetLastError());
+		return false;
+	}
+
+	ret = inject_library(process, hook_path_abs_w);
+	CloseHandle(process);
+
+	if (ret != 0) {
+		warn("hook_direct: inject failed: %d", ret);
+		return false;
+	}
+
+	return true;
+}
+
 static inline bool create_inject_process(struct game_capture *gc,
-		const char *inject_path, const char *hook_path)
+		const char *inject_path, const char *hook_dll)
 {
 	wchar_t *command_line_w = malloc(4096 * sizeof(wchar_t));
 	wchar_t *inject_path_w;
-	wchar_t *hook_path_w;
+	wchar_t *hook_dll_w;
+	bool anti_cheat = gc->config.anticheat_hook;
 	PROCESS_INFORMATION pi = {0};
 	STARTUPINFO si = {0};
 	bool success = false;
 
 	os_utf8_to_wcs_ptr(inject_path, 0, &inject_path_w);
-	os_utf8_to_wcs_ptr(hook_path, 0, &hook_path_w);
+	os_utf8_to_wcs_ptr(hook_dll, 0, &hook_dll_w);
 
 	si.cb = sizeof(si);
 
-	swprintf(command_line_w, 4096, L"\"%s\" \"%s\" %lu",
-			inject_path_w, hook_path_w, gc->thread_id);
+	swprintf(command_line_w, 4096, L"\"%s\" \"%s\" %lu %lu",
+			inject_path_w, hook_dll_w,
+			(unsigned long)anti_cheat,
+			anti_cheat ? gc->thread_id : gc->process_id);
 
 	success = !!CreateProcessW(inject_path_w, command_line_w, NULL, NULL,
 			false, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
@@ -584,23 +652,27 @@ static inline bool create_inject_process(struct game_capture *gc,
 
 	free(command_line_w);
 	bfree(inject_path_w);
-	bfree(hook_path_w);
+	bfree(hook_dll_w);
 	return success;
 }
 
 static inline bool inject_hook(struct game_capture *gc)
 {
+	bool matching_architecture;
 	bool success = false;
+	const char *hook_dll;
 	char *inject_path;
 	char *hook_path;
 
 	if (gc->process_is_64bit) {
+		hook_dll = "graphics-hook64.dll";
 		inject_path = obs_module_file("inject-helper64.exe");
-		hook_path = obs_module_file("graphics-hook64.dll");
 	} else {
+		hook_dll = "graphics-hook32.dll";
 		inject_path = obs_module_file("inject-helper32.exe");
-		hook_path = obs_module_file("graphics-hook32.dll");
 	}
+
+	hook_path = obs_module_file(hook_dll);
 
 	if (!check_file_integrity(gc, inject_path, "inject helper")) {
 		goto cleanup;
@@ -609,7 +681,20 @@ static inline bool inject_hook(struct game_capture *gc)
 		goto cleanup;
 	}
 
-	success = create_inject_process(gc, inject_path, hook_path);
+#ifdef _WIN64
+	matching_architecture = gc->process_is_64bit;
+#else
+	matching_architecture = !gc->process_is_64bit;
+#endif
+
+	if (matching_architecture && !gc->config.anticheat_hook) {
+		info("using direct hook");
+		success = hook_direct(gc, hook_path);
+	} else {
+		info("using helper (%s hook)", gc->config.anticheat_hook ?
+				"compatibility" : "direct");
+		success = create_inject_process(gc, inject_path, hook_dll);
+	}
 
 cleanup:
 	bfree(inject_path);
@@ -1173,7 +1258,7 @@ static void game_capture_tick(void *data, float seconds)
 		close_handle(&gc->injector_process);
 
 		if (exit_code != 0) {
-			warn("inject process failed: %lu", exit_code);
+			warn("inject process failed: %ld", (long)exit_code);
 			gc->error_acquiring = true;
 
 		} else if (!gc->capturing) {
@@ -1197,6 +1282,11 @@ static void game_capture_tick(void *data, float seconds)
 	gc->retry_time += seconds;
 
 	if (!gc->active) {
+		if (!obs_source_showing(gc->source)) {
+			gc->retry_time = 0.0f;
+			return;
+		}
+
 		if (!gc->error_acquiring &&
 		    gc->retry_time > gc->retry_interval) {
 			if (gc->config.capture_any_fullscreen ||
@@ -1292,8 +1382,9 @@ static uint32_t game_capture_height(void *data)
 	return gc->active ? gc->global_hook_info->cy : 0;
 }
 
-static const char *game_capture_name(void)
+static const char *game_capture_name(void *unused)
 {
+	UNUSED_PARAMETER(unused);
 	return TEXT_GAME_CAPTURE;
 }
 
@@ -1309,6 +1400,7 @@ static void game_capture_defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, SETTING_SCALE_RES, "0x0");
 	obs_data_set_default_bool(settings, SETTING_LIMIT_FRAMERATE, false);
 	obs_data_set_default_bool(settings, SETTING_CAPTURE_OVERLAYS, false);
+	obs_data_set_default_bool(settings, SETTING_ANTI_CHEAT_HOOK, false);
 }
 
 static bool any_fullscreen_callback(obs_properties_t *ppts,
@@ -1481,10 +1573,13 @@ static obs_properties_t *game_capture_properties(void *data)
 	obs_properties_add_bool(ppts, SETTING_LIMIT_FRAMERATE,
 			TEXT_LIMIT_FRAMERATE);
 
+	obs_properties_add_bool(ppts, SETTING_CURSOR, TEXT_CAPTURE_CURSOR);
+
+	obs_properties_add_bool(ppts, SETTING_ANTI_CHEAT_HOOK,
+			TEXT_ANTI_CHEAT_HOOK);
+
 	obs_properties_add_bool(ppts, SETTING_CAPTURE_OVERLAYS,
 			TEXT_CAPTURE_OVERLAYS);
-
-	obs_properties_add_bool(ppts, SETTING_CURSOR, TEXT_CAPTURE_CURSOR);
 
 	UNUSED_PARAMETER(data);
 	return ppts;

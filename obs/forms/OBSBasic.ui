@@ -369,6 +369,21 @@
               <property name="frameShape">
                <enum>QFrame::NoFrame</enum>
               </property>
+               <property name="showDropIndicator" stdset="0">
+                <bool>true</bool>
+               </property>
+               <property name="dragEnabled">
+                <bool>true</bool>
+               </property>
+               <property name="dragDropMode">
+                <enum>QAbstractItemView::InternalMove</enum>
+               </property>
+               <property name="selectionMode">
+                <enum>QAbstractItemView::ExtendedSelection</enum>
+               </property>
+               <property name="defaultDropAction">
+                <enum>Qt::TargetMoveAction</enum>
+               </property>
               <addaction name="actionRemoveSource"/>
              </widget>
             </item>
@@ -473,6 +488,18 @@
               <property name="frameShadow">
                <enum>QFrame::Plain</enum>
               </property>
+              <property name="showDropIndicator" stdset="0">
+               <bool>true</bool>
+              </property>
+              <property name="dragEnabled">
+               <bool>true</bool>
+              </property>
+              <property name="dragDropMode">
+               <enum>QAbstractItemView::InternalMove</enum>
+              </property>
+              <property name="defaultDropAction">
+               <enum>Qt::TargetMoveAction</enum>
+              </property>
               <addaction name="actionRemoveScene"/>
              </widget>
             </item>
@@ -495,7 +522,6 @@
               </property>
               <addaction name="actionAddScene"/>
               <addaction name="actionRemoveScene"/>
-              <addaction name="actionSceneProperties"/>
               <addaction name="separator"/>
               <addaction name="actionSceneUp"/>
               <addaction name="actionSceneDown"/>
@@ -540,13 +566,12 @@
     <property name="title">
      <string>Basic.MainMenu.File</string>
     </property>
-    <addaction name="action_Save"/>
-    <addaction name="action_Open"/>
-    <addaction name="separator"/>
     <addaction name="actionShow_Recordings"/>
     <addaction name="actionRemux"/>
     <addaction name="separator"/>
     <addaction name="action_Settings"/>
+    <addaction name="actionShowSettingsFolder"/>
+    <addaction name="actionShowProfileFolder"/>
     <addaction name="separator"/>
     <addaction name="actionE_xit"/>
    </widget>
@@ -563,6 +588,8 @@
      <addaction name="actionUploadLastLog"/>
      <addaction name="actionViewCurrentLog"/>
     </widget>
+    <addaction name="actionWebsite"/>
+    <addaction name="separator"/>
     <addaction name="menuLogFiles"/>
     <addaction name="actionCheckForUpdates"/>
    </widget>
@@ -598,16 +625,35 @@
      <addaction name="actionMoveToTop"/>
      <addaction name="actionMoveToBottom"/>
     </widget>
-    <addaction name="actionUndo"/>
-    <addaction name="actionRedo"/>
-    <addaction name="separator"/>
     <addaction name="transformMenu"/>
     <addaction name="orderMenu"/>
     <addaction name="separator"/>
     <addaction name="actionAdvAudioProperties"/>
    </widget>
+   <widget class="QMenu" name="profileMenu">
+    <property name="title">
+     <string>Basic.MainMenu.Profile</string>
+    </property>
+    <addaction name="actionNewProfile"/>
+    <addaction name="actionDupProfile"/>
+    <addaction name="actionRenameProfile"/>
+    <addaction name="actionRemoveProfile"/>
+    <addaction name="separator"/>
+   </widget>
+   <widget class="QMenu" name="sceneCollectionMenu">
+    <property name="title">
+     <string>Basic.MainMenu.SceneCollection</string>
+    </property>
+    <addaction name="actionNewSceneCollection"/>
+    <addaction name="actionDupSceneCollection"/>
+    <addaction name="actionRenameSceneCollection"/>
+    <addaction name="actionRemoveSceneCollection"/>
+    <addaction name="separator"/>
+   </widget>
    <addaction name="menu_File"/>
    <addaction name="menuBasic_MainMenu_Edit"/>
+   <addaction name="profileMenu"/>
+   <addaction name="sceneCollectionMenu"/>
    <addaction name="menuBasic_MainMenu_Help"/>
   </widget>
   <widget class="OBSBasicStatusBar" name="statusbar"/>
@@ -671,21 +717,6 @@
     <string notr="true">removeIconSmall</string>
    </property>
   </action>
-  <action name="actionSceneProperties">
-   <property name="enabled">
-    <bool>false</bool>
-   </property>
-   <property name="icon">
-    <iconset resource="obs.qrc">
-     <normaloff>:/res/images/properties.png</normaloff>:/res/images/properties.png</iconset>
-   </property>
-   <property name="text">
-    <string>Properties</string>
-   </property>
-   <property name="themeID" stdset="0">
-    <string notr="true">propertiesIconSmall</string>
-   </property>
-  </action>
   <action name="actionSourceProperties">
    <property name="enabled">
     <bool>true</bool>
@@ -702,9 +733,6 @@
    </property>
   </action>
   <action name="actionSceneUp">
-   <property name="enabled">
-    <bool>false</bool>
-   </property>
    <property name="icon">
     <iconset resource="obs.qrc">
      <normaloff>:/res/images/up.png</normaloff>:/res/images/up.png</iconset>
@@ -732,9 +760,6 @@
    </property>
   </action>
   <action name="actionSceneDown">
-   <property name="enabled">
-    <bool>false</bool>
-   </property>
    <property name="icon">
     <iconset resource="obs.qrc">
      <normaloff>:/res/images/down.png</normaloff>:/res/images/down.png</iconset>
@@ -759,27 +784,6 @@
    </property>
    <property name="themeID" stdset="0">
     <string notr="true">downArrowIconSmall</string>
-   </property>
-  </action>
-  <action name="action_New">
-   <property name="text">
-    <string>Basic.MainMenu.SwitchMode</string>
-   </property>
-  </action>
-  <action name="action_Open">
-   <property name="enabled">
-    <bool>false</bool>
-   </property>
-   <property name="text">
-    <string>Basic.MainMenu.File.Export</string>
-   </property>
-  </action>
-  <action name="action_Save">
-   <property name="enabled">
-    <bool>false</bool>
-   </property>
-   <property name="text">
-    <string>Basic.MainMenu.File.Import</string>
    </property>
   </action>
   <action name="actionShow_Recordings">
@@ -945,6 +949,61 @@
   <action name="actionAdvAudioProperties">
    <property name="text">
     <string>Basic.MainMenu.Edit.AdvAudio</string>
+   </property>
+  </action>
+  <action name="actionWebsite">
+   <property name="text">
+    <string>Basic.MainMenu.Help.Website</string>
+   </property>
+  </action>
+  <action name="actionNewSceneCollection">
+   <property name="text">
+    <string>New</string>
+   </property>
+  </action>
+  <action name="actionDupSceneCollection">
+   <property name="text">
+    <string>Duplicate</string>
+   </property>
+  </action>
+  <action name="actionRenameSceneCollection">
+   <property name="text">
+    <string>Rename</string>
+   </property>
+  </action>
+  <action name="actionRemoveSceneCollection">
+   <property name="text">
+    <string>Remove</string>
+   </property>
+  </action>
+  <action name="actionNewProfile">
+   <property name="text">
+    <string>New</string>
+   </property>
+  </action>
+  <action name="actionDupProfile">
+   <property name="text">
+    <string>Duplicate</string>
+   </property>
+  </action>
+  <action name="actionRenameProfile">
+   <property name="text">
+    <string>Rename</string>
+   </property>
+  </action>
+  <action name="actionRemoveProfile">
+   <property name="text">
+    <string>Remove</string>
+   </property>
+  </action>
+  <action name="actionShowSettingsFolder">
+   <property name="text">
+    <string>Basic.MainMenu.File.ShowSettingsFolder</string>
+   </property>
+  </action>
+  <action name="actionShowProfileFolder">
+   <property name="text">
+    <string>Basic.MainMenu.File.ShowProfileFolder</string>
    </property>
   </action>
  </widget>

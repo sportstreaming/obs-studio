@@ -31,10 +31,9 @@ using namespace std;
 
 OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 	: QDialog                (parent),
+	  preview                (new OBSQTDisplay(this)),
 	  main                   (qobject_cast<OBSBasic*>(parent)),
-	  resizeTimer            (0),
 	  acceptClicked          (false),
-	  ui                     (new Ui::OBSBasicProperties),
 	  source                 (source_),
 	  removedSignal          (obs_source_get_signal_handler(source),
 	                          "remove", OBSBasicProperties::SourceRemoved,
@@ -54,10 +53,12 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 			QDialogButtonBox::Cancel);
 	buttonBox->setObjectName(QStringLiteral("buttonBox"));
 
-	ui->setupUi(this);
-
 	if (cx > 400 && cy > 400)
 		resize(cx, cy);
+	else
+		resize(720, 580);
+
+	QMetaObject::connectSlotsByName(this);
 
 	/* The OBSData constructor increments the reference once */
 	obs_data_release(oldSettings);
@@ -70,6 +71,12 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 			(PropertiesReloadCallback)obs_source_properties,
 			(PropertiesUpdateCallback)obs_source_update);
 
+	preview->setMinimumSize(20, 20);
+	preview->setSizePolicy(QSizePolicy(QSizePolicy::Expanding,
+				QSizePolicy::Expanding));
+
+	setLayout(new QVBoxLayout(this));
+	layout()->addWidget(preview);
 	layout()->addWidget(view);
 	layout()->addWidget(buttonBox);
 	layout()->setAlignment(buttonBox, Qt::AlignRight | Qt::AlignBottom);
@@ -80,15 +87,6 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 
 	installEventFilter(CreateShortcutFilter());
 
-	connect(view, SIGNAL(PropertiesResized()),
-			this, SLOT(OnPropertiesResized()));
-
-	connect(windowHandle(), &QWindow::screenChanged, [this]() {
-		if (resizeTimer)
-			killTimer(resizeTimer);
-		resizeTimer = startTimer(100);
-	});
-
 	const char *name = obs_source_get_name(source);
 	setWindowTitle(QTStr("Basic.PropertiesWindow").arg(QT_UTF8(name)));
 
@@ -98,11 +96,20 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 			"update_properties",
 			OBSBasicProperties::UpdateProperties,
 			this);
+
+	auto addDrawCallback = [this] ()
+	{
+		obs_display_add_draw_callback(preview->GetDisplay(),
+				OBSBasicProperties::DrawPreview, this);
+	};
+
+	connect(preview.data(), &OBSQTDisplay::DisplayCreated, addDrawCallback);
 }
 
 OBSBasicProperties::~OBSBasicProperties()
 {
 	obs_source_dec_showing(source);
+	main->SaveProject();
 }
 
 void OBSBasicProperties::SourceRemoved(void *data, calldata_t *params)
@@ -185,43 +192,8 @@ void OBSBasicProperties::DrawPreview(void *data, uint32_t cx, uint32_t cy)
 	gs_viewport_pop();
 }
 
-void OBSBasicProperties::OnPropertiesResized()
-{
-	if (resizeTimer)
-		killTimer(resizeTimer);
-	resizeTimer = startTimer(100);
-}
-
-void OBSBasicProperties::resizeEvent(QResizeEvent *event)
-{
-	if (isVisible()) {
-		if (resizeTimer)
-			killTimer(resizeTimer);
-		resizeTimer = startTimer(100);
-	}
-
-	QDialog::resizeEvent(event);
-}
-
-void OBSBasicProperties::timerEvent(QTimerEvent *event)
-{
-	if (event->timerId() == resizeTimer) {
-		killTimer(resizeTimer);
-		resizeTimer = 0;
-
-		QSize size = GetPixelSize(ui->preview);
-		obs_display_resize(display, size.width(), size.height());
-	}
-}
-
 void OBSBasicProperties::Cleanup()
 {
-	// remove draw callback and release display in case our drawable
-	// surfaces go away before the destructor gets called
-	obs_display_remove_draw_callback(display,
-			OBSBasicProperties::DrawPreview, this);
-	display = nullptr;
-
 	config_set_int(App()->GlobalConfig(), "PropertiesWindow", "cx",
 			width());
 	config_set_int(App()->GlobalConfig(), "PropertiesWindow", "cy",
@@ -258,21 +230,7 @@ void OBSBasicProperties::closeEvent(QCloseEvent *event)
 
 void OBSBasicProperties::Init()
 {
-	gs_init_data init_data = {};
-
 	show();
-
-	QSize previewSize = GetPixelSize(ui->preview);
-	init_data.cx      = uint32_t(previewSize.width());
-	init_data.cy      = uint32_t(previewSize.height());
-	init_data.format  = GS_RGBA;
-	QTToGSWindow(ui->preview->winId(), init_data.window);
-
-	display = obs_display_create(&init_data);
-
-	if (display)
-		obs_display_add_draw_callback(display,
-				OBSBasicProperties::DrawPreview, this);
 }
 
 int OBSBasicProperties::CheckSettings()
