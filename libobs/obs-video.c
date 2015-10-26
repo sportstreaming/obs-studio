@@ -21,6 +21,8 @@
 #include "media-io/format-conversion.h"
 #include "media-io/video-frame.h"
 
+#include "obs-opencv.h"
+
 static inline void calculate_base_volume(struct obs_core_data *data,
 		struct obs_view *view, obs_source_t *target)
 {
@@ -82,6 +84,9 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 		calculate_base_volume(data, view, source);
 		source = (struct obs_source*)source->context.next;
 	}
+
+    /*blending video of multiple source*/
+    blending_sources(data->first_source);
 
 	pthread_mutex_unlock(&view->channels_mutex);
 

@@ -47,6 +47,9 @@ find_package(ZLIB REQUIRED)
 
 include_directories(SYSTEM ${ZLIB_INCLUDE_DIR})
 
+find_package( OpenCV REQUIRED )
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+
 add_definitions(-DLIBOBS_EXPORTS)
 
 include_directories(${OBS_JANSSON_INCLUDE_DIRS})
@@ -262,6 +265,7 @@ set(libobs_libobs_SOURCES
 	obs-encoder.c
 	obs-service.c
 	obs-source.c
+        obs-opencv.cpp
 	obs-output.c
 	obs-output-delay.c
 	obs.c
@@ -292,6 +296,7 @@ set(libobs_libobs_HEADERS
 	obs-module.h
 	obs-scene.h
 	obs-source.h
+        obs-opencv.h
 	obs-output.h
 	obs-ffmpeg-compat.h
 	obs.hpp)
@@ -357,6 +362,7 @@ target_link_libraries(libobs
 		${OBS_JANSSON_IMPORT}
 		${FFMPEG_LIBRARIES}
 		${ZLIB_LIBRARIES}
+                ${OpenCV_LIBS}`
 	PUBLIC
 		${THREADS_LIBRARIES})
 

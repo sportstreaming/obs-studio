@@ -1818,6 +1818,7 @@ static inline void free_async_cache(struct obs_source *source)
 	da_resize(source->async_cache, 0);
 	da_resize(source->async_frames, 0);
 	source->cur_async_frame = NULL;
+    source->cur_mix_frame = NULL;
 }
 
 #define MAX_UNUSED_FRAME_DURATION 5
