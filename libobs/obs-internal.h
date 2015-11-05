@@ -55,32 +55,18 @@ static inline bool obs_object_valid(const void *obj, const char *f,
 		const char *t)
 {
 	if (!obj) {
-		blog(LOG_WARNING, "Null %s passed to %s!", t, f);
+		blog(LOG_DEBUG, "%s: Null '%s' parameter", f, t);
 		return false;
 	}
 
 	return true;
 }
 
-static inline bool obs_source_valid(const obs_source_t *obj, const char *f)
-{
-	return obs_object_valid(obj, f, "source");
-}
-
-static inline bool obs_output_valid(const obs_output_t *obj, const char *f)
-{
-	return obs_object_valid(obj, f, "output");
-}
-
-static inline bool obs_encoder_valid(const obs_encoder_t *obj, const char *f)
-{
-	return obs_object_valid(obj, f, "encoder");
-}
-
-static inline bool obs_service_valid(const obs_service_t *obj, const char *f)
-{
-	return obs_object_valid(obj, f, "service");
-}
+#define obs_ptr_valid(ptr, func) obs_object_valid(ptr, func, #ptr)
+#define obs_source_valid  obs_ptr_valid
+#define obs_output_valid  obs_ptr_valid
+#define obs_encoder_valid obs_ptr_valid
+#define obs_service_valid obs_ptr_valid
 
 /* ------------------------------------------------------------------------- */
 /* modules */

@@ -1266,8 +1266,6 @@ void OBSBasic::UpdateSources(OBSScene scene)
 
 void OBSBasic::InsertSceneItem(obs_sceneitem_t *item)
 {
-	obs_source_t *source = obs_sceneitem_get_source(item);
-
 	QListWidgetItem *listItem = new QListWidgetItem();
 	SetOBSRef(listItem, OBSSceneItem(item));
 
@@ -1275,10 +1273,6 @@ void OBSBasic::InsertSceneItem(obs_sceneitem_t *item)
 	ui->sources->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
 
 	SetupVisibilityItem(ui->sources, listItem, item);
-
-	/* if the source was just created, open properties dialog */
-	if (sourceSceneRefs[source] == 0 && loaded)
-		CreatePropertiesWindow(source);
 }
 
 void OBSBasic::CreateInteractionWindow(obs_source_t *source)
@@ -1983,7 +1977,7 @@ void OBSBasic::DrawBackdrop(float cx, float cy)
 	if (!box)
 		return;
 
-	gs_effect_t    *solid = obs_get_solid_effect();
+	gs_effect_t    *solid = obs_get_base_effect(OBS_EFFECT_SOLID);
 	gs_eparam_t    *color = gs_effect_get_param_by_name(solid, "color");
 	gs_technique_t *tech  = gs_effect_get_technique(solid, "Solid");
 
@@ -2732,6 +2726,8 @@ void OBSBasic::AddSource(const char *id)
 	if (id && *id) {
 		OBSBasicSourceSelect sourceSelect(this, id);
 		sourceSelect.exec();
+		if (sourceSelect.newSource)
+			CreatePropertiesWindow(sourceSelect.newSource);
 	}
 }
 
