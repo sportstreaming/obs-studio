@@ -15,6 +15,7 @@ class DeckLinkDevice {
 	std::string                               displayName;
 	std::string                               hash;
 	volatile long                             refCount = 1;
+    static int64_t                            next_id;
 
 public:
 	DeckLinkDevice(IDeckLink *device);

@@ -1057,7 +1057,8 @@ static obs_properties_t *av_capture_properties(void *unused)
 			OBS_COMBO_FORMAT_STRING);
 	for (AVCaptureDevice *dev in [AVCaptureDevice
 			devicesWithMediaType:AVMediaTypeVideo]) {
-		obs_property_list_add_string(dev_list,
+        blog(LOG_INFO, "AVCapture device %s", dev.localizedName.UTF8String);
+        obs_property_list_add_string(dev_list,
 				dev.localizedName.UTF8String,
 				dev.uniqueID.UTF8String);
 	}

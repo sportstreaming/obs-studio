@@ -4,8 +4,11 @@
 
 #include <util/threading.h>
 
+int64_t DeckLinkDevice::next_id = 0;
+
 DeckLinkDevice::DeckLinkDevice(IDeckLink *device_) : device(device_)
 {
+    ++next_id;
 }
 
 DeckLinkDevice::~DeckLinkDevice(void)
@@ -72,9 +75,11 @@ bool DeckLinkDevice::Init()
 	if (result != S_OK)
 		return true;
 
-	int64_t value;
-	if (attributes->GetInt(BMDDeckLinkPersistentID, &value) != S_OK)
-		return true;
+//	int64_t value;
+//	if (attributes->GetInt(BMDDeckLinkPersistentID, &value) != S_OK)
+//		return true;
+
+    int64_t value = next_id;
 
 	std::ostringstream os;
 	os << value << "_" << name;
