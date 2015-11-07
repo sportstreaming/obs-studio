@@ -1,11 +1,39 @@
 #include "obs-opencv.h"
 #include "obs-internal.h"
 
+#include <unistd.h>
 #include <libyuv.h>
 #include <cv.h>
 #include <highgui.h>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+
+#define MAX_FILE_NUM  2
+#define DEFAULT_PATH  "/tmp"
+
+static FILE* DF[MAX_FILE_NUM] = {0};
+
+void open_dump_files()
+{
+    int i = 0;
+    for (; i < MAX_FILE_NUM; ++i) {
+        char filename[128] = {0};
+        snprintf(filename, sizeof(filename), "%s/%d.yuv", DEFAULT_PATH, i);
+        DF[i] = fopen(filename, "wb");
+        if ( !DF[i] ) {
+            blog(LOG_ERROR, "err: %d", errno);
+        }
+    }
+
+}
+
+void close_dump_files()
+{
+    int i = 0;
+    for (; i < MAX_FILE_NUM; ++i) {
+        fclose(DF[i]);
+    }
+}
 
 void update_mix_frame(struct obs_source *source)
 {
@@ -28,6 +56,7 @@ void blending_sources(struct obs_source *source)
     bool initilized = false;
 
     struct obs_source * first_source = NULL;
+    int i = 0;
 
     while (source) {
         struct obs_source_frame * frame = source->cur_mix_frame;
@@ -51,7 +80,18 @@ void blending_sources(struct obs_source *source)
             //cv::Mat dst(frame->height, frame->width, CV_8UC4, data);
             //imshow(source->context.name, dst);
 
-            addWeighted( mix, alpha, dst, 1-alpha, 0.0, mix);
+            if (i < MAX_FILE_NUM) {
+                struct obs_source_frame * cur_async_frame = source->cur_async_frame;
+                if ( cur_async_frame ) {
+                    fwrite(cur_async_frame->data[0],
+                           1,
+                           cur_async_frame->height * cur_async_frame->width * 2,
+                           DF[i]);
+                }
+            }
+            ++i;
+
+            addWeighted(mix, alpha, dst, 1-alpha, 0.0, mix);
 
             first_source = source;
         }

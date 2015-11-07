@@ -616,6 +616,8 @@ void *obs_video_thread(void *param)
 	uint64_t last_time = 0;
 	uint64_t interval = video_output_get_frame_time(obs->video.video);
 
+	open_dump_files();
+
 	obs->video.video_time = os_gettime_ns();
 
 	os_set_thread_name("libobs: graphics thread");
@@ -646,6 +648,8 @@ void *obs_video_thread(void *param)
 
 		video_sleep(&obs->video, &obs->video.video_time, interval);
 	}
+
+	close_dump_files();
 
 	UNUSED_PARAMETER(param);
 	return NULL;
