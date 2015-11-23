@@ -11,7 +11,11 @@
 #define MAX_FILE_NUM  2
 #define DEFAULT_PATH  "/tmp"
 
+#ifdef RAW_YUV
 static FILE* DF[MAX_FILE_NUM] = {0};
+#else
+static cv::VideoWriter outputVideo[MAX_FILE_NUM];
+#endif
 
 void open_dump_files()
 {
@@ -19,10 +23,13 @@ void open_dump_files()
     for (; i < MAX_FILE_NUM; ++i) {
         char filename[128] = {0};
         snprintf(filename, sizeof(filename), "%s/%d.yuv", DEFAULT_PATH, i);
+#ifdef RAW_YUV
         DF[i] = fopen(filename, "wb");
         if ( !DF[i] ) {
             blog(LOG_ERROR, "err: %d", errno);
         }
+#else
+#endif
     }
 
 }
@@ -31,7 +38,10 @@ void close_dump_files()
 {
     int i = 0;
     for (; i < MAX_FILE_NUM; ++i) {
+#ifdef RAW_YUV
         fclose(DF[i]);
+#else
+#endif
     }
 }
 
@@ -83,10 +93,40 @@ void blending_sources(struct obs_source *source)
             if (i < MAX_FILE_NUM) {
                 struct obs_source_frame * cur_async_frame = source->cur_async_frame;
                 if ( cur_async_frame ) {
+#ifdef RAW_YUV
                     fwrite(cur_async_frame->data[0],
                            1,
                            cur_async_frame->height * cur_async_frame->width * 2,
                            DF[i]);
+#else
+                    if (! outputVideo[i].isOpened()) {
+                        char filename[128] = {0};
+                        snprintf(filename, sizeof(filename), "%s/%d.h264", DEFAULT_PATH, i);
+                        cv::Size S = cv::Size(cur_async_frame->width, cur_async_frame->height);
+                        outputVideo[i].open(filename, 30, CV_FOURCC('H','2','6','4'), S, true);
+                    } else {
+                        cv::Mat argb = cv::Mat::zeros(cur_async_frame->height, cur_async_frame->width, CV_8UC4);
+                        assert(argb.isContinuous());
+                        libyuv::UYVYToARGB(cur_async_frame->data[0],
+                                           cur_async_frame->linesize[0],
+                                           argb.ptr(),
+                                           //data,
+                                           cur_async_frame->width * 4,
+                                           cur_async_frame->width,
+                                           cur_async_frame->height);
+//                        std::vector<cv::Mat> spl;
+//                        cv::split(argb, spl);
+//                        std::vector<cv::Mat> rgb;
+//                        for (int i =1; i < 4; ++i){
+//                            rgb.push_back(spl[i]);
+//                        }
+//                        cv::Mat rgb_img;
+//                        cv::merge(rgb, rgb_img);
+//                        outputVideo[i].write(rgb_img);
+                        outputVideo[i].write(argb);
+                    }
+
+#endif
                 }
             }
             ++i;
